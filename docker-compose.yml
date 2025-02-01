@@ -1,14 +1,20 @@
 ---
-version: "3.3"
-
 services:
   main:
     build: .
     ports:
+      - "8080:8080"
       - "8081:8081"
+    env_file:
+      - .env
     environment:
       # logging
-      LOG_LEVEL: "info"
+      LOG_LEVEL: "debug"
+
+      AUTHENTICATION_ENABLED: "true"
+      API_KEYS: "f791709e0fc2a4eabfdca42a50d905a8"
+
+      DRAGONFLY_HOST: "dragonfly"
 
       # metrics
       METRICS_ENABLED: "true"
@@ -17,13 +23,23 @@ services:
       # tracing
       TRACING_ENABLED: "false"
       TRACING_SAMPLERATE: "1.0"
-      TRACING_SERVICE: "go-start"
+      TRACING_SERVICE: "lfpweather-forecast-inference-api"
       TRACING_VERSION: "0.0.1"
       OTEL_EXPORTER_OTLP_ENDPOINT: "http://tempo:4317"
 
       # grpc (otlp tracing)
       GRPC_GO_LOG_VERBOSITY_LEVEL: 99
       GRPC_GO_LOG_SEVERITY_LEVEL: info
+    depends_on:
+      dragonfly:
+        condition: service_started
+
+  dragonfly:
+    image: docker.dragonflydb.io/dragonflydb/dragonfly
+    ulimits:
+      memlock: -1
+    ports:
+      - "6379:6379"
 
   prometheus:
     image: prom/prometheus
