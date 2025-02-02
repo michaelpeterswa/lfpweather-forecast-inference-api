@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"net/http"
 	"strings"
+	"time"
 
 	"alpineworks.io/rfc9457"
 	"github.com/anthropics/anthropic-sdk-go"
@@ -19,7 +20,8 @@ type ForecastHandler struct {
 }
 
 type ForecastSummaryResponse struct {
-	Summary string `json:"summary"`
+	Summary     string    `json:"summary"`
+	LastUpdated time.Time `json:"last_updated"`
 }
 
 func (ah *AnthropicHandler) GetForecastSummary(w http.ResponseWriter, r *http.Request) {
@@ -152,6 +154,8 @@ func (ah *AnthropicHandler) GetForecastSummary(w http.ResponseWriter, r *http.Re
 		).ServeHTTP(w, r)
 		return
 	}
+
+	fsr.LastUpdated = time.Now()
 
 	fsrJson, err := json.Marshal(fsr)
 	if err != nil {
