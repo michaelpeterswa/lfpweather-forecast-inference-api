@@ -94,6 +94,7 @@ func main() {
 	forecastSubrouter := v1Subrouter.PathPrefix("/forecast").Subrouter()
 
 	forecastSubrouter.HandleFunc("/summary", anthropicHandler.GetForecastSummary).Methods(http.MethodGet)
+	forecastSubrouter.HandleFunc("/detailed", anthropicHandler.GetForcastPeriodsInformation).Methods(http.MethodGet)
 
 	if c.AuthenticationEnabled {
 		authenticationMiddleware := middleware.NewAuthenticationMiddlewareClient(
