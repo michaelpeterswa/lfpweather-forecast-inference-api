@@ -11,7 +11,7 @@ type Config struct {
 	LogLevel string `env:"LOG_LEVEL" envDefault:"error"`
 
 	AnthropicAPIKey         string        `env:"ANTHROPIC_API_KEY"`
-	AnthropicHandlerTimeout time.Duration `env:"ANTHROPIC_HANDLER_TIMEOUT" envDefault:"5s"`
+	AnthropicHandlerTimeout time.Duration `env:"ANTHROPIC_HANDLER_TIMEOUT" envDefault:"10s"`
 
 	NWSClientTimeout time.Duration `env:"NWS_CLIENT_TIMEOUT" envDefault:"5s"`
 

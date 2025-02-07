@@ -52,10 +52,12 @@ type ForecastResponse struct {
 
 type SimplifiedForecastPeriods struct {
 	DetailedForecast string    `json:"detailed_forecast"`
+	ShortForecast    string    `json:"short_forecast"`
 	StartTime        time.Time `json:"start_time"`
 	EndTime          time.Time `json:"end_time"`
 	Temperature      int       `json:"temperature"`
 	WindSpeed        string    `json:"wind_speed"`
+	WindDirection    string    `json:"wind_direction"`
 	Name             string    `json:"name"`
 }
 
@@ -99,6 +101,10 @@ func (nc *NWSClient) GetSimplifiedForecastNPeriods(gridpoints string, n int) ([]
 		return nil, err
 	}
 
+	if n == -1 {
+		return forecastResponeToSimplifiedForecastPeriods(forecast), nil
+	}
+
 	return forecastResponeToSimplifiedForecastPeriods(forecast)[:n], nil
 }
 
@@ -107,10 +113,12 @@ func forecastResponeToSimplifiedForecastPeriods(forecast ForecastResponse) []Sim
 	for _, period := range forecast.Properties.Periods {
 		periods = append(periods, SimplifiedForecastPeriods{
 			DetailedForecast: period.DetailedForecast,
+			ShortForecast:    period.ShortForecast,
 			StartTime:        period.StartTime,
 			EndTime:          period.EndTime,
 			Temperature:      period.Temperature,
 			WindSpeed:        period.WindSpeed,
+			WindDirection:    period.WindDirection,
 			Name:             period.Name,
 		})
 	}
