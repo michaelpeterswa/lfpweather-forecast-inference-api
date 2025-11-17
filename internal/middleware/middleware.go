@@ -2,6 +2,7 @@ package middleware
 
 import (
 	"fmt"
+	"log/slog"
 	"net/http"
 
 	"alpineworks.io/rfc9457"
@@ -50,6 +51,7 @@ func (amc *AuthenticationMiddlewareClient) AuthenticationMiddleware(next http.Ha
 			}
 
 			if !valid {
+				slog.Error("invalid api key", slog.String("api_key", apiKey), slog.String("path", r.URL.Path))
 				rfc9457.NewRFC9457(
 					rfc9457.WithTitle("invalid api key"),
 					rfc9457.WithDetail(fmt.Sprintf("%s is not a valid api key", apiKey)),
@@ -63,6 +65,7 @@ func (amc *AuthenticationMiddlewareClient) AuthenticationMiddleware(next http.Ha
 		})
 	default:
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			slog.Error("invalid authentication mode", slog.String("path", r.URL.Path))
 			rfc9457.NewRFC9457(
 				rfc9457.WithTitle("invalid authentication mode"),
 				rfc9457.WithDetail("authentication middleware is misconfigured"),

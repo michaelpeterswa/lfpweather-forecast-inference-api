@@ -6,7 +6,7 @@ import (
 	"net/http"
 	"os"
 
-	"github.com/alpineworks/ootel"
+	"alpineworks.io/ootel"
 	"github.com/anthropics/anthropic-sdk-go"
 	"github.com/anthropics/anthropic-sdk-go/option"
 	"github.com/gorilla/mux"
@@ -44,6 +44,7 @@ func main() {
 		ootel.WithMetricConfig(
 			ootel.NewMetricConfig(
 				c.MetricsEnabled,
+				ootel.ExporterTypePrometheus,
 				c.MetricsPort,
 			),
 		),
@@ -86,7 +87,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	anthropicHandler := handlers.NewAnthropicHandler(client, nwsClient, dragonflyClient, c.AnthropicHandlerTimeout)
+	anthropicHandler := handlers.NewAnthropicHandler(&client, c.AnthropicModel, nwsClient, dragonflyClient, c.AnthropicHandlerTimeout)
 
 	router := mux.NewRouter()
 	apiSubrouter := router.PathPrefix("/api").Subrouter()
