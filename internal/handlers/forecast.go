@@ -42,6 +42,7 @@ func (ah *AnthropicHandler) GetForecastSummary(w http.ResponseWriter, r *http.Re
 
 		fsrJson, err := json.Marshal(fsr)
 		if err != nil {
+			slog.Error("failed to marshal forecast summary from cache", slog.String("error", err.Error()))
 			rfc9457.NewRFC9457(
 				rfc9457.WithTitle("failed to marshal forecast summary from cache"),
 				rfc9457.WithDetail(fmt.Sprintf("failed to marshal forecast summary from cache: %s", err.Error())),
@@ -60,6 +61,7 @@ func (ah *AnthropicHandler) GetForecastSummary(w http.ResponseWriter, r *http.Re
 
 	periods, err := ah.NWSClient.GetSimplifiedForecastNPeriods("SEW/127,75", 3)
 	if err != nil {
+		slog.Error("failed to get simplified forecast periods", slog.String("error", err.Error()))
 		rfc9457.NewRFC9457(
 			rfc9457.WithTitle("failed to get simplified forecast periods"),
 			rfc9457.WithDetail(fmt.Sprintf("failed to get simplified forecast periods: %s", err.Error())),
@@ -71,6 +73,7 @@ func (ah *AnthropicHandler) GetForecastSummary(w http.ResponseWriter, r *http.Re
 
 	periodsJSON, err := json.Marshal(periods)
 	if err != nil {
+		slog.Error("failed to marshal simplified forecast periods", slog.String("error", err.Error()))
 		rfc9457.NewRFC9457(
 			rfc9457.WithTitle("failed to marshal simplified forecast periods"),
 			rfc9457.WithDetail(fmt.Sprintf("failed to marshal simplified forecast periods: %s", err.Error())),
@@ -162,6 +165,7 @@ func (ah *AnthropicHandler) GetForecastSummary(w http.ResponseWriter, r *http.Re
 		}),
 	})
 	if err != nil {
+		slog.Error("failed to get forecast summary", slog.String("error", err.Error()))
 		rfc9457.NewRFC9457(
 			rfc9457.WithTitle("failed to get forecast summary"),
 			rfc9457.WithDetail(fmt.Sprintf("failed to get forecast summary: %s", err.Error())),
@@ -174,6 +178,7 @@ func (ah *AnthropicHandler) GetForecastSummary(w http.ResponseWriter, r *http.Re
 	var fsr ForecastSummaryResponse
 	err = json.Unmarshal([]byte(message.Content[0].Text), &fsr)
 	if err != nil {
+		slog.Error("failed to unmarshal forecast summary", slog.String("error", err.Error()))
 		rfc9457.NewRFC9457(
 			rfc9457.WithTitle("failed to unmarshal forecast summary"),
 			rfc9457.WithDetail(fmt.Sprintf("failed to unmarshal forecast summary: %s", err.Error())),
@@ -187,6 +192,7 @@ func (ah *AnthropicHandler) GetForecastSummary(w http.ResponseWriter, r *http.Re
 
 	fsrJson, err := json.Marshal(fsr)
 	if err != nil {
+		slog.Error("failed to marshal forecast summary", slog.String("error", err.Error()))
 		rfc9457.NewRFC9457(
 			rfc9457.WithTitle("failed to marshal forecast summary"),
 			rfc9457.WithDetail(fmt.Sprintf("failed to marshal forecast summary: %s", err.Error())),
@@ -264,6 +270,7 @@ func (ah *AnthropicHandler) GetForcastPeriodsInformation(w http.ResponseWriter, 
 
 		fpiJson, err := json.Marshal(fpi)
 		if err != nil {
+			slog.Error("failed to marshal forecast periods information from cache", slog.String("error", err.Error()))
 			rfc9457.NewRFC9457(
 				rfc9457.WithTitle("failed to marshal forecast periods information from cache"),
 				rfc9457.WithDetail(fmt.Sprintf("failed to marshal forecast periods information from cache: %s", err.Error())),
@@ -282,6 +289,7 @@ func (ah *AnthropicHandler) GetForcastPeriodsInformation(w http.ResponseWriter, 
 
 	periods, err := ah.NWSClient.GetSimplifiedForecastNPeriods("SEW/127,75", -1)
 	if err != nil {
+		slog.Error("failed to get simplified forecast periods", slog.String("error", err.Error()))
 		rfc9457.NewRFC9457(
 			rfc9457.WithTitle("failed to get simplified forecast periods"),
 			rfc9457.WithDetail(fmt.Sprintf("failed to get simplified forecast periods: %s", err.Error())),
@@ -293,6 +301,7 @@ func (ah *AnthropicHandler) GetForcastPeriodsInformation(w http.ResponseWriter, 
 
 	periodsJSON, err := json.Marshal(periods)
 	if err != nil {
+		slog.Error("failed to marshal simplified forecast periods", slog.String("error", err.Error()))
 		rfc9457.NewRFC9457(
 			rfc9457.WithTitle("failed to marshal simplified forecast periods"),
 			rfc9457.WithDetail(fmt.Sprintf("failed to marshal simplified forecast periods: %s", err.Error())),
@@ -399,6 +408,7 @@ func (ah *AnthropicHandler) GetForcastPeriodsInformation(w http.ResponseWriter, 
 		}),
 	})
 	if err != nil {
+		slog.Error("failed to get forecast periods information", slog.String("error", err.Error()))
 		rfc9457.NewRFC9457(
 			rfc9457.WithTitle("failed to get forecast periods information"),
 			rfc9457.WithDetail(fmt.Sprintf("failed to get forecast periods information: %s", err.Error())),
@@ -411,6 +421,7 @@ func (ah *AnthropicHandler) GetForcastPeriodsInformation(w http.ResponseWriter, 
 	var fpi []GetForecastPeriodsInformation
 	err = json.Unmarshal([]byte(message.Content[0].Text), &fpi)
 	if err != nil {
+		slog.Error("failed to unmarshal forecast periods information", slog.String("error", err.Error()))
 		rfc9457.NewRFC9457(
 			rfc9457.WithTitle("failed to unmarshal forecast periods information"),
 			rfc9457.WithDetail(fmt.Sprintf("failed to unmarshal forecast periods information: %s", err.Error())),
@@ -436,6 +447,7 @@ func (ah *AnthropicHandler) GetForcastPeriodsInformation(w http.ResponseWriter, 
 
 	fpiJson, err := json.Marshal(fpiResponse)
 	if err != nil {
+		slog.Error("failed to marshal forecast periods information", slog.String("error", err.Error()))
 		rfc9457.NewRFC9457(
 			rfc9457.WithTitle("failed to marshal forecast periods information"),
 			rfc9457.WithDetail(fmt.Sprintf("failed to marshal forecast periods information: %s", err.Error())),
