@@ -10,14 +10,16 @@ import (
 
 type AnthropicHandler struct {
 	AnthropicClient *anthropic.Client
+	Model           string
 	NWSClient       *nws.NWSClient
 	DragonflyClient *dragonfly.DragonflyClient
 	Timeout         time.Duration
 }
 
-func NewAnthropicHandler(ac *anthropic.Client, nc *nws.NWSClient, dc *dragonfly.DragonflyClient, timeout time.Duration) *AnthropicHandler {
+func NewAnthropicHandler(ac *anthropic.Client, model string, nc *nws.NWSClient, dc *dragonfly.DragonflyClient, timeout time.Duration) *AnthropicHandler {
 	return &AnthropicHandler{
 		AnthropicClient: ac,
+		Model:           model,
 		NWSClient:       nc,
 		DragonflyClient: dc,
 		Timeout:         timeout,

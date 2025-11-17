@@ -157,12 +157,12 @@ func (ah *AnthropicHandler) GetForecastSummary(w http.ResponseWriter, r *http.Re
 	}
 
 	message, err := ah.AnthropicClient.Messages.New(timeoutCtx, anthropic.MessageNewParams{
-		Model:     anthropic.F(anthropic.ModelClaude3_5SonnetLatest),
-		MaxTokens: anthropic.F(int64(1024)),
-		System:    anthropic.F([]anthropic.TextBlockParam{anthropic.NewTextBlock(systemPrompt)}),
-		Messages: anthropic.F([]anthropic.MessageParam{
+		Model:     anthropic.Model(ah.Model),
+		MaxTokens: int64(1024),
+		System:    []anthropic.TextBlockParam{anthropic.TextBlockParam{Text: systemPrompt}},
+		Messages: []anthropic.MessageParam{
 			anthropic.NewUserMessage(anthropic.NewTextBlock(buildFinalPrompt(prompt, fewShotTraining, string(periodsJSON)))),
-		}),
+		},
 	})
 	if err != nil {
 		slog.Error("failed to get forecast summary", slog.String("error", err.Error()))
@@ -176,9 +176,10 @@ func (ah *AnthropicHandler) GetForecastSummary(w http.ResponseWriter, r *http.Re
 	}
 
 	var fsr ForecastSummaryResponse
-	err = json.Unmarshal([]byte(message.Content[0].Text), &fsr)
+	cleanedText := stripMarkdownCodeBlock(message.Content[0].Text)
+	err = json.Unmarshal([]byte(cleanedText), &fsr)
 	if err != nil {
-		slog.Error("failed to unmarshal forecast summary", slog.String("error", err.Error()))
+		slog.Error("failed to unmarshal forecast summary", slog.String("error", err.Error()), slog.String("response", cleanedText))
 		rfc9457.NewRFC9457(
 			rfc9457.WithTitle("failed to unmarshal forecast summary"),
 			rfc9457.WithDetail(fmt.Sprintf("failed to unmarshal forecast summary: %s", err.Error())),
@@ -400,12 +401,12 @@ func (ah *AnthropicHandler) GetForcastPeriodsInformation(w http.ResponseWriter, 
 	}
 
 	message, err := ah.AnthropicClient.Messages.New(timeoutCtx, anthropic.MessageNewParams{
-		Model:     anthropic.F(anthropic.ModelClaude3_5SonnetLatest),
-		MaxTokens: anthropic.F(int64(1024)),
-		System:    anthropic.F([]anthropic.TextBlockParam{anthropic.NewTextBlock(systemPrompt)}),
-		Messages: anthropic.F([]anthropic.MessageParam{
+		Model:     anthropic.Model(ah.Model),
+		MaxTokens: int64(1024),
+		System:    []anthropic.TextBlockParam{anthropic.TextBlockParam{Text: systemPrompt}},
+		Messages: []anthropic.MessageParam{
 			anthropic.NewUserMessage(anthropic.NewTextBlock(buildFinalPrompt(prompt, fewShotTraining, string(periodsJSON)))),
-		}),
+		},
 	})
 	if err != nil {
 		slog.Error("failed to get forecast periods information", slog.String("error", err.Error()))
@@ -419,9 +420,10 @@ func (ah *AnthropicHandler) GetForcastPeriodsInformation(w http.ResponseWriter, 
 	}
 
 	var fpi []GetForecastPeriodsInformation
-	err = json.Unmarshal([]byte(message.Content[0].Text), &fpi)
+	cleanedText := stripMarkdownCodeBlock(message.Content[0].Text)
+	err = json.Unmarshal([]byte(cleanedText), &fpi)
 	if err != nil {
-		slog.Error("failed to unmarshal forecast periods information", slog.String("error", err.Error()))
+		slog.Error("failed to unmarshal forecast periods information", slog.String("error", err.Error()), slog.String("response", cleanedText))
 		rfc9457.NewRFC9457(
 			rfc9457.WithTitle("failed to unmarshal forecast periods information"),
 			rfc9457.WithDetail(fmt.Sprintf("failed to unmarshal forecast periods information: %s", err.Error())),
@@ -491,4 +493,19 @@ func multiShotWrapper(ms []MultiShot) string {
 
 func buildFinalPrompt(prompt string, ms []MultiShot, inputData string) string {
 	return fmt.Sprintf("%s\n\n%s\n\n%s", prompt, multiShotWrapper(ms), fmt.Sprintf("input: %s", inputData))
+}
+
+func stripMarkdownCodeBlock(text string) string {
+	// Remove ```json or ``` prefix and ``` suffix
+	text = strings.TrimSpace(text)
+	if strings.HasPrefix(text, "```json") {
+		text = strings.TrimPrefix(text, "```json")
+	} else if strings.HasPrefix(text, "```") {
+		text = strings.TrimPrefix(text, "```")
+	}
+	text = strings.TrimSpace(text)
+	if strings.HasSuffix(text, "```") {
+		text = strings.TrimSuffix(text, "```")
+	}
+	return strings.TrimSpace(text)
 }
