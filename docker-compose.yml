@@ -11,6 +11,12 @@ services:
       # logging
       LOG_LEVEL: "debug"
 
+      # LLM provider configuration
+      LLM_PROVIDER: "openai"
+      # OPENAI_API_KEY is set in .env file
+      OPENAI_MODEL: "ggml-org/gemma-3-12b-it-GGUF:Q8_0"
+      # OPENAI_BASE_URL: "" # Optional: for OpenAI-compatible APIs
+
       AUTHENTICATION_ENABLED: "true"
       API_KEYS: "f791709e0fc2a4eabfdca42a50d905a8"
 
