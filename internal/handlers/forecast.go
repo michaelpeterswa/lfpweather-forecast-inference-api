@@ -10,14 +10,14 @@ import (
 	"time"
 
 	"alpineworks.io/rfc9457"
-	"github.com/anthropics/anthropic-sdk-go"
+	"github.com/michaelpeterswa/lfpweather-forecast-inference-api/internal/llm"
 	"github.com/michaelpeterswa/lfpweather-forecast-inference-api/internal/nws"
 	"github.com/redis/go-redis/v9"
 )
 
 type ForecastHandler struct {
-	AnthropicHandler *AnthropicHandler
-	GridPoints       string
+	LLMHandler *LLMHandler
+	GridPoints string
 }
 
 type ForecastSummaryResponse struct {
@@ -26,11 +26,11 @@ type ForecastSummaryResponse struct {
 	LastUpdated time.Time `json:"last_updated"`
 }
 
-func (ah *AnthropicHandler) GetForecastSummary(w http.ResponseWriter, r *http.Request) {
-	timeoutCtx, cancel := context.WithTimeout(r.Context(), ah.Timeout)
+func (lh *LLMHandler) GetForecastSummary(w http.ResponseWriter, r *http.Request) {
+	timeoutCtx, cancel := context.WithTimeout(r.Context(), lh.Timeout)
 	defer cancel()
 
-	res, err := ah.DragonflyClient.Client.Get(timeoutCtx, fmt.Sprintf("%s-%s", ah.DragonflyClient.KeyPrefix, "forecast-summary")).Result()
+	res, err := lh.DragonflyClient.Client.Get(timeoutCtx, fmt.Sprintf("%s-%s", lh.DragonflyClient.KeyPrefix, "forecast-summary")).Result()
 	if err != nil && err != redis.Nil {
 		slog.Error("could not get forecast summary from cache", slog.String("error", err.Error()))
 	} else if err == nil && res != "" {
@@ -59,7 +59,7 @@ func (ah *AnthropicHandler) GetForecastSummary(w http.ResponseWriter, r *http.Re
 		return
 	}
 
-	periods, err := ah.NWSClient.GetSimplifiedForecastNPeriods("SEW/127,75", 3)
+	periods, err := lh.NWSClient.GetSimplifiedForecastNPeriods("SEW/127,75", 3)
 	if err != nil {
 		slog.Error("failed to get simplified forecast periods", slog.String("error", err.Error()))
 		rfc9457.NewRFC9457(
@@ -156,13 +156,10 @@ func (ah *AnthropicHandler) GetForecastSummary(w http.ResponseWriter, r *http.Re
 		},
 	}
 
-	message, err := ah.AnthropicClient.Messages.New(timeoutCtx, anthropic.MessageNewParams{
-		Model:     anthropic.Model(ah.Model),
-		MaxTokens: int64(1024),
-		System:    []anthropic.TextBlockParam{anthropic.TextBlockParam{Text: systemPrompt}},
-		Messages: []anthropic.MessageParam{
-			anthropic.NewUserMessage(anthropic.NewTextBlock(buildFinalPrompt(prompt, fewShotTraining, string(periodsJSON)))),
-		},
+	response, err := lh.LLMProvider.Complete(timeoutCtx, llm.CompletionRequest{
+		SystemPrompt: systemPrompt,
+		UserPrompt:   buildFinalPrompt(prompt, fewShotTraining, string(periodsJSON)),
+		MaxTokens:    1024,
 	})
 	if err != nil {
 		slog.Error("failed to get forecast summary", slog.String("error", err.Error()))
@@ -176,7 +173,7 @@ func (ah *AnthropicHandler) GetForecastSummary(w http.ResponseWriter, r *http.Re
 	}
 
 	var fsr ForecastSummaryResponse
-	cleanedText := stripMarkdownCodeBlock(message.Content[0].Text)
+	cleanedText := stripMarkdownCodeBlock(response.Content)
 	err = json.Unmarshal([]byte(cleanedText), &fsr)
 	if err != nil {
 		slog.Error("failed to unmarshal forecast summary", slog.String("error", err.Error()), slog.String("response", cleanedText))
@@ -203,7 +200,7 @@ func (ah *AnthropicHandler) GetForecastSummary(w http.ResponseWriter, r *http.Re
 		return
 	}
 
-	err = ah.DragonflyClient.Client.Set(timeoutCtx, fmt.Sprintf("%s-%s", ah.DragonflyClient.KeyPrefix, "forecast-summary"), fsrJson, ah.DragonflyClient.CacheResultsDuration).Err()
+	err = lh.DragonflyClient.Client.Set(timeoutCtx, fmt.Sprintf("%s-%s", lh.DragonflyClient.KeyPrefix, "forecast-summary"), fsrJson, lh.DragonflyClient.CacheResultsDuration).Err()
 	if err != nil {
 		slog.Error("could not set forecast summary in cache", slog.String("error", err.Error()))
 	}
@@ -255,11 +252,11 @@ type GetForecastPeriodsInformationResponse struct {
 	LastUpdated time.Time                          `json:"last_updated"`
 }
 
-func (ah *AnthropicHandler) GetForcastPeriodsInformation(w http.ResponseWriter, r *http.Request) {
-	timeoutCtx, cancel := context.WithTimeout(r.Context(), ah.Timeout)
+func (lh *LLMHandler) GetForcastPeriodsInformation(w http.ResponseWriter, r *http.Request) {
+	timeoutCtx, cancel := context.WithTimeout(r.Context(), lh.Timeout)
 	defer cancel()
 
-	res, err := ah.DragonflyClient.Client.Get(timeoutCtx, fmt.Sprintf("%s-%s", ah.DragonflyClient.KeyPrefix, "forecast-periods-information")).Result()
+	res, err := lh.DragonflyClient.Client.Get(timeoutCtx, fmt.Sprintf("%s-%s", lh.DragonflyClient.KeyPrefix, "forecast-periods-information")).Result()
 	if err != nil && err != redis.Nil {
 		slog.Error("could not get forecast periods information from cache", slog.String("error", err.Error()))
 	} else if err == nil && res != "" {
@@ -288,7 +285,7 @@ func (ah *AnthropicHandler) GetForcastPeriodsInformation(w http.ResponseWriter, 
 		return
 	}
 
-	periods, err := ah.NWSClient.GetSimplifiedForecastNPeriods("SEW/127,75", -1)
+	periods, err := lh.NWSClient.GetSimplifiedForecastNPeriods("SEW/127,75", -1)
 	if err != nil {
 		slog.Error("failed to get simplified forecast periods", slog.String("error", err.Error()))
 		rfc9457.NewRFC9457(
@@ -400,13 +397,10 @@ func (ah *AnthropicHandler) GetForcastPeriodsInformation(w http.ResponseWriter, 
 		},
 	}
 
-	message, err := ah.AnthropicClient.Messages.New(timeoutCtx, anthropic.MessageNewParams{
-		Model:     anthropic.Model(ah.Model),
-		MaxTokens: int64(1024),
-		System:    []anthropic.TextBlockParam{anthropic.TextBlockParam{Text: systemPrompt}},
-		Messages: []anthropic.MessageParam{
-			anthropic.NewUserMessage(anthropic.NewTextBlock(buildFinalPrompt(prompt, fewShotTraining, string(periodsJSON)))),
-		},
+	response, err := lh.LLMProvider.Complete(timeoutCtx, llm.CompletionRequest{
+		SystemPrompt: systemPrompt,
+		UserPrompt:   buildFinalPrompt(prompt, fewShotTraining, string(periodsJSON)),
+		MaxTokens:    1024,
 	})
 	if err != nil {
 		slog.Error("failed to get forecast periods information", slog.String("error", err.Error()))
@@ -420,7 +414,7 @@ func (ah *AnthropicHandler) GetForcastPeriodsInformation(w http.ResponseWriter, 
 	}
 
 	var fpi []GetForecastPeriodsInformation
-	cleanedText := stripMarkdownCodeBlock(message.Content[0].Text)
+	cleanedText := stripMarkdownCodeBlock(response.Content)
 	err = json.Unmarshal([]byte(cleanedText), &fpi)
 	if err != nil {
 		slog.Error("failed to unmarshal forecast periods information", slog.String("error", err.Error()), slog.String("response", cleanedText))
@@ -459,7 +453,7 @@ func (ah *AnthropicHandler) GetForcastPeriodsInformation(w http.ResponseWriter, 
 		return
 	}
 
-	err = ah.DragonflyClient.Client.Set(timeoutCtx, fmt.Sprintf("%s-%s", ah.DragonflyClient.KeyPrefix, "forecast-periods-information"), fpiJson, ah.DragonflyClient.CacheResultsDuration).Err()
+	err = lh.DragonflyClient.Client.Set(timeoutCtx, fmt.Sprintf("%s-%s", lh.DragonflyClient.KeyPrefix, "forecast-periods-information"), fpiJson, lh.DragonflyClient.CacheResultsDuration).Err()
 	if err != nil {
 		slog.Error("could not set forecast periods information in cache", slog.String("error", err.Error()))
 	}
@@ -504,8 +498,6 @@ func stripMarkdownCodeBlock(text string) string {
 		text = strings.TrimPrefix(text, "```")
 	}
 	text = strings.TrimSpace(text)
-	if strings.HasSuffix(text, "```") {
-		text = strings.TrimSuffix(text, "```")
-	}
+	text = strings.TrimSuffix(text, "```")
 	return strings.TrimSpace(text)
 }

@@ -10,9 +10,26 @@ import (
 type Config struct {
 	LogLevel string `env:"LOG_LEVEL" envDefault:"error"`
 
-	AnthropicAPIKey         string        `env:"ANTHROPIC_API_KEY"`
-	AnthropicModel          string        `env:"ANTHROPIC_MODEL" envDefault:"claude-sonnet-4-5"`
-	AnthropicHandlerTimeout time.Duration `env:"ANTHROPIC_HANDLER_TIMEOUT" envDefault:"10s"`
+	// LLM Provider selection: "anthropic" or "openai"
+	LLMProvider string `env:"LLM_PROVIDER" envDefault:"anthropic"`
+
+	// Anthropic configuration
+	AnthropicAPIKey string `env:"ANTHROPIC_API_KEY"`
+	AnthropicModel  string `env:"ANTHROPIC_MODEL" envDefault:"claude-sonnet-4-5"`
+
+	// OpenAI-compatible configuration
+	OpenAIAPIKey  string `env:"OPENAI_API_KEY"`
+	OpenAIModel   string `env:"OPENAI_MODEL" envDefault:"gpt-4o"`
+	OpenAIBaseURL string `env:"OPENAI_BASE_URL"` // Optional: for OpenAI-compatible APIs (e.g., local LLMs, Azure)
+
+	// Handler timeout (applies to all providers)
+	LLMHandlerTimeout time.Duration `env:"LLM_HANDLER_TIMEOUT" envDefault:"10s"`
+
+	// Background worker configuration
+	WorkerEnabled  bool          `env:"WORKER_ENABLED" envDefault:"true"`
+	WorkerInterval time.Duration `env:"WORKER_INTERVAL" envDefault:"30m"`
+	WorkerTimeout  time.Duration `env:"WORKER_TIMEOUT" envDefault:"60s"`
+	GridPoint      string        `env:"GRID_POINT" envDefault:"SEW/127,75"`
 
 	NWSClientTimeout time.Duration `env:"NWS_CLIENT_TIMEOUT" envDefault:"5s"`
 

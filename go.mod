@@ -3,25 +3,23 @@ module github.com/michaelpeterswa/lfpweather-forecast-inference-api
 go 1.25.0
 
 require (
+	alpineworks.io/ootel v1.0.6
 	alpineworks.io/rfc9457 v1.0.2
-	github.com/alpineworks/ootel v1.0.1
 	github.com/anthropics/anthropic-sdk-go v1.18.0
 	github.com/caarlos0/env/v11 v11.3.1
 	github.com/gorilla/mux v1.8.1
+	github.com/openai/openai-go v1.12.0
 	github.com/redis/go-redis/v9 v9.7.0
 )
 
 require (
-	alpineworks.io/ootel v1.0.6 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
-	github.com/cenkalti/backoff/v4 v4.3.0 // indirect
 	github.com/cenkalti/backoff/v5 v5.0.3 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/dgryski/go-rendezvous v0.0.0-20200823014737-9f7001d12a5f // indirect
 	github.com/go-logr/logr v1.4.3 // indirect
 	github.com/go-logr/stdr v1.2.2 // indirect
 	github.com/google/uuid v1.6.0 // indirect
-	github.com/grafana/regexp v0.0.0-20250905093917-f7b3be9d1853 // indirect
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.27.3 // indirect
 	github.com/mitchellh/mapstructure v1.5.0 // indirect
 	github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 // indirect

@@ -3,23 +3,21 @@ package handlers
 import (
 	"time"
 
-	"github.com/anthropics/anthropic-sdk-go"
 	"github.com/michaelpeterswa/lfpweather-forecast-inference-api/internal/dragonfly"
+	"github.com/michaelpeterswa/lfpweather-forecast-inference-api/internal/llm"
 	"github.com/michaelpeterswa/lfpweather-forecast-inference-api/internal/nws"
 )
 
-type AnthropicHandler struct {
-	AnthropicClient *anthropic.Client
-	Model           string
+type LLMHandler struct {
+	LLMProvider     llm.Provider
 	NWSClient       *nws.NWSClient
 	DragonflyClient *dragonfly.DragonflyClient
 	Timeout         time.Duration
 }
 
-func NewAnthropicHandler(ac *anthropic.Client, model string, nc *nws.NWSClient, dc *dragonfly.DragonflyClient, timeout time.Duration) *AnthropicHandler {
-	return &AnthropicHandler{
-		AnthropicClient: ac,
-		Model:           model,
+func NewLLMHandler(provider llm.Provider, nc *nws.NWSClient, dc *dragonfly.DragonflyClient, timeout time.Duration) *LLMHandler {
+	return &LLMHandler{
+		LLMProvider:     provider,
 		NWSClient:       nc,
 		DragonflyClient: dc,
 		Timeout:         timeout,

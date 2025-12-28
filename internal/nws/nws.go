@@ -75,7 +75,7 @@ func (nc *NWSClient) GetForecast(gridpoints string) (ForecastResponse, error) {
 		slog.Error("could not get forecast", slog.String("error", err.Error()))
 		return ForecastResponse{}, err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	var forecast ForecastResponse
 	if err := json.NewDecoder(resp.Body).Decode(&forecast); err != nil {
