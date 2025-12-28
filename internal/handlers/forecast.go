@@ -498,8 +498,6 @@ func stripMarkdownCodeBlock(text string) string {
 		text = strings.TrimPrefix(text, "```")
 	}
 	text = strings.TrimSpace(text)
-	if strings.HasSuffix(text, "```") {
-		text = strings.TrimSuffix(text, "```")
-	}
+	text = strings.TrimSuffix(text, "```")
 	return strings.TrimSpace(text)
 }
