@@ -20,7 +20,8 @@ type Config struct {
 	// OpenAI-compatible configuration
 	OpenAIAPIKey  string `env:"OPENAI_API_KEY"`
 	OpenAIModel   string `env:"OPENAI_MODEL" envDefault:"gpt-4o"`
-	OpenAIBaseURL string `env:"OPENAI_BASE_URL"` // Optional: for OpenAI-compatible APIs (e.g., local LLMs, Azure)
+	OpenAIBaseURL string `env:"OPENAI_BASE_URL"`   // Optional: for OpenAI-compatible APIs (e.g., local LLMs, Azure)
+	OpenAINoThink bool   `env:"OPENAI_NO_THINK"`   // Optional: append /no_think to prompts (for Qwen 3 models)
 
 	// Handler timeout (applies to all providers)
 	LLMHandlerTimeout time.Duration `env:"LLM_HANDLER_TIMEOUT" envDefault:"10s"`

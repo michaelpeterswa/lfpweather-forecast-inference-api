@@ -9,6 +9,7 @@ type CompletionRequest struct {
 	SystemPrompt string
 	UserPrompt   string
 	MaxTokens    int64
+	NoThink      bool
 }
 
 // CompletionResponse represents a response from an LLM provider

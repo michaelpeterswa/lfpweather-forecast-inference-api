@@ -14,8 +14,12 @@ services:
       # LLM provider configuration
       LLM_PROVIDER: "openai"
       # OPENAI_API_KEY is set in .env file
-      OPENAI_MODEL: "ggml-org/gemma-3-12b-it-GGUF:Q8_0"
+      OPENAI_MODEL: "unsloth/Qwen3.5-27B-GGUF:Q4_0"
+      OPENAI_NO_THINK: "true"
       # OPENAI_BASE_URL: "" # Optional: for OpenAI-compatible APIs
+
+      LLM_HANDLER_TIMEOUT: "120s"
+      WORKER_TIMEOUT: "300s"
 
       AUTHENTICATION_ENABLED: "true"
       API_KEYS: "f791709e0fc2a4eabfdca42a50d905a8"
