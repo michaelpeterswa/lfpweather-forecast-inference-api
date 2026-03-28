@@ -159,7 +159,7 @@ func (lh *LLMHandler) GetForecastSummary(w http.ResponseWriter, r *http.Request)
 	response, err := lh.LLMProvider.Complete(timeoutCtx, llm.CompletionRequest{
 		SystemPrompt: systemPrompt,
 		UserPrompt:   buildFinalPrompt(prompt, fewShotTraining, string(periodsJSON)),
-		MaxTokens:    1024,
+		MaxTokens:    4096,
 	})
 	if err != nil {
 		slog.Error("failed to get forecast summary", slog.String("error", err.Error()))
@@ -400,7 +400,7 @@ func (lh *LLMHandler) GetForcastPeriodsInformation(w http.ResponseWriter, r *htt
 	response, err := lh.LLMProvider.Complete(timeoutCtx, llm.CompletionRequest{
 		SystemPrompt: systemPrompt,
 		UserPrompt:   buildFinalPrompt(prompt, fewShotTraining, string(periodsJSON)),
-		MaxTokens:    1024,
+		MaxTokens:    4096,
 	})
 	if err != nil {
 		slog.Error("failed to get forecast periods information", slog.String("error", err.Error()))

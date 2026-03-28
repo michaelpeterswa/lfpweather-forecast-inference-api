@@ -72,7 +72,7 @@ func main() {
 	var llmProvider llm.Provider
 	switch strings.ToLower(c.LLMProvider) {
 	case "openai":
-		llmProvider = llm.NewOpenAIProvider(c.OpenAIAPIKey, c.OpenAIModel, c.OpenAIBaseURL)
+		llmProvider = llm.NewOpenAIProvider(c.OpenAIAPIKey, c.OpenAIModel, c.OpenAIBaseURL, c.OpenAINoThink)
 		slog.Info("using OpenAI-compatible provider", slog.String("model", c.OpenAIModel))
 	case "anthropic":
 		fallthrough

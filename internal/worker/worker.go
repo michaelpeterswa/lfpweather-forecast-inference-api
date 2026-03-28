@@ -185,7 +185,7 @@ func (w *ForecastWorker) generateForecastSummary(ctx context.Context) {
 	response, err := w.LLMProvider.Complete(timeoutCtx, llm.CompletionRequest{
 		SystemPrompt: systemPrompt,
 		UserPrompt:   buildFinalPrompt(prompt, fewShotTraining, string(periodsJSON)),
-		MaxTokens:    1024,
+		MaxTokens:    4096,
 	})
 	if err != nil {
 		slog.Error("worker: failed to get forecast summary", slog.String("error", err.Error()))
@@ -352,7 +352,7 @@ func (w *ForecastWorker) generateForecastPeriodsInformation(ctx context.Context)
 	response, err := w.LLMProvider.Complete(timeoutCtx, llm.CompletionRequest{
 		SystemPrompt: systemPrompt,
 		UserPrompt:   buildFinalPrompt(prompt, fewShotTraining, string(periodsJSON)),
-		MaxTokens:    1024,
+		MaxTokens:    4096,
 	})
 	if err != nil {
 		slog.Error("worker: failed to get forecast periods information", slog.String("error", err.Error()))
