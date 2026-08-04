@@ -20,8 +20,8 @@ type Config struct {
 	// OpenAI-compatible configuration
 	OpenAIAPIKey  string `env:"OPENAI_API_KEY"`
 	OpenAIModel   string `env:"OPENAI_MODEL" envDefault:"gpt-4o"`
-	OpenAIBaseURL string `env:"OPENAI_BASE_URL"`   // Optional: for OpenAI-compatible APIs (e.g., local LLMs, Azure)
-	OpenAINoThink bool   `env:"OPENAI_NO_THINK"`   // Optional: append /no_think to prompts (for Qwen 3 models)
+	OpenAIBaseURL string `env:"OPENAI_BASE_URL"` // Optional: for OpenAI-compatible APIs (e.g., local LLMs, Azure)
+	OpenAINoThink bool   `env:"OPENAI_NO_THINK"` // Optional: append /no_think to prompts (for Qwen 3 models)
 
 	// Handler timeout (applies to all providers)
 	LLMHandlerTimeout time.Duration `env:"LLM_HANDLER_TIMEOUT" envDefault:"10s"`
@@ -33,6 +33,13 @@ type Config struct {
 	GridPoint      string        `env:"GRID_POINT" envDefault:"SEW/127,75"`
 
 	NWSClientTimeout time.Duration `env:"NWS_CLIENT_TIMEOUT" envDefault:"5s"`
+
+	// lfpweather-api: source for live station observations and the fire danger
+	// summary, used by the current conditions, smoke outlook, and fire weather
+	// summaries.
+	LFPWeatherAPIBaseURL    string        `env:"LFPWEATHER_API_BASE_URL"`
+	LFPWeatherAPIKey        string        `env:"LFPWEATHER_API_KEY"`
+	LFPWeatherClientTimeout time.Duration `env:"LFPWEATHER_CLIENT_TIMEOUT" envDefault:"5s"`
 
 	AuthenticationEnabled bool     `env:"AUTHENTICATION_ENABLED" envDefault:"false"`
 	APIKeys               []string `env:"API_KEYS" envSeparator:","`
