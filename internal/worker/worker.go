@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/michaelpeterswa/lfpweather-forecast-inference-api/internal/dragonfly"
+	"github.com/michaelpeterswa/lfpweather-forecast-inference-api/internal/generate"
 	"github.com/michaelpeterswa/lfpweather-forecast-inference-api/internal/llm"
 	"github.com/michaelpeterswa/lfpweather-forecast-inference-api/internal/nws"
 )
@@ -18,6 +19,7 @@ type ForecastWorker struct {
 	LLMProvider     llm.Provider
 	NWSClient       *nws.NWSClient
 	DragonflyClient *dragonfly.DragonflyClient
+	Generator       *generate.Generator
 	Interval        time.Duration
 	Timeout         time.Duration
 	GridPoint       string
@@ -28,6 +30,7 @@ func NewForecastWorker(
 	provider llm.Provider,
 	nwsClient *nws.NWSClient,
 	dragonflyClient *dragonfly.DragonflyClient,
+	generator *generate.Generator,
 	interval time.Duration,
 	timeout time.Duration,
 	gridPoint string,
@@ -36,6 +39,7 @@ func NewForecastWorker(
 		LLMProvider:     provider,
 		NWSClient:       nwsClient,
 		DragonflyClient: dragonflyClient,
+		Generator:       generator,
 		Interval:        interval,
 		Timeout:         timeout,
 		GridPoint:       gridPoint,
@@ -67,8 +71,8 @@ func (w *ForecastWorker) Start(ctx context.Context) {
 func (w *ForecastWorker) runGeneration(ctx context.Context) {
 	slog.Info("running forecast generation")
 
-	// Run both generations concurrently
-	done := make(chan struct{}, 2)
+	// Run all generations concurrently
+	done := make(chan struct{}, 3)
 
 	go func() {
 		w.generateForecastSummary(ctx)
@@ -80,7 +84,15 @@ func (w *ForecastWorker) runGeneration(ctx context.Context) {
 		done <- struct{}{}
 	}()
 
-	// Wait for both to complete
+	go func() {
+		// RefreshAll regenerates the current conditions, smoke outlook, and
+		// fire weather summaries.
+		w.Generator.RefreshAll(ctx)
+		done <- struct{}{}
+	}()
+
+	// Wait for all to complete
+	<-done
 	<-done
 	<-done
 

@@ -11,7 +11,9 @@ import (
 	"github.com/gorilla/mux"
 	"github.com/michaelpeterswa/lfpweather-forecast-inference-api/internal/config"
 	"github.com/michaelpeterswa/lfpweather-forecast-inference-api/internal/dragonfly"
+	"github.com/michaelpeterswa/lfpweather-forecast-inference-api/internal/generate"
 	"github.com/michaelpeterswa/lfpweather-forecast-inference-api/internal/handlers"
+	"github.com/michaelpeterswa/lfpweather-forecast-inference-api/internal/lfpweather"
 	"github.com/michaelpeterswa/lfpweather-forecast-inference-api/internal/llm"
 	"github.com/michaelpeterswa/lfpweather-forecast-inference-api/internal/logging"
 	"github.com/michaelpeterswa/lfpweather-forecast-inference-api/internal/middleware"
@@ -97,7 +99,22 @@ func main() {
 		os.Exit(1)
 	}
 
-	llmHandler := handlers.NewLLMHandler(llmProvider, nwsClient, dragonflyClient, c.LLMHandlerTimeout)
+	lfpweatherClient := lfpweather.NewClient(
+		&http.Client{Timeout: c.LFPWeatherClientTimeout},
+		c.LFPWeatherAPIBaseURL,
+		c.LFPWeatherAPIKey,
+	)
+
+	summaryGenerator := generate.New(
+		llmProvider,
+		lfpweatherClient,
+		nwsClient,
+		dragonflyClient,
+		c.GridPoint,
+		c.WorkerTimeout,
+	)
+
+	llmHandler := handlers.NewLLMHandler(llmProvider, nwsClient, dragonflyClient, summaryGenerator, c.LLMHandlerTimeout)
 
 	// Start background worker if enabled
 	if c.WorkerEnabled {
@@ -105,6 +122,7 @@ func main() {
 			llmProvider,
 			nwsClient,
 			dragonflyClient,
+			summaryGenerator,
 			c.WorkerInterval,
 			c.WorkerTimeout,
 			c.GridPoint,
@@ -119,6 +137,11 @@ func main() {
 
 	forecastSubrouter.HandleFunc("/summary", llmHandler.GetForecastSummary).Methods(http.MethodGet)
 	forecastSubrouter.HandleFunc("/detailed", llmHandler.GetForcastPeriodsInformation).Methods(http.MethodGet)
+
+	// Headline summaries that combine live station data with the forecast.
+	v1Subrouter.HandleFunc("/current", llmHandler.GetCurrentConditions).Methods(http.MethodGet)
+	v1Subrouter.HandleFunc("/smoke", llmHandler.GetSmokeOutlook).Methods(http.MethodGet)
+	v1Subrouter.HandleFunc("/fire_weather", llmHandler.GetFireWeather).Methods(http.MethodGet)
 
 	if c.AuthenticationEnabled {
 		authenticationMiddleware := middleware.NewAuthenticationMiddlewareClient(
