@@ -7,6 +7,7 @@ package lfpweather
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"strings"
@@ -75,6 +76,34 @@ type FireDangerSummary struct {
 	} `json:"fuel_moisture"`
 }
 
+var errNotFound = errors.New("not found")
+
+// ErrNoForecast is returned when the lfpweather-api has no fresh station
+// temperature forecast (HTTP 404).
+var ErrNoForecast = errors.New("no station forecast")
+
+// TemperatureForecast is the subset of the lfpweather-api latest temperature
+// forecast that the forecast summary needs.
+type TemperatureForecast struct {
+	IssuedAt time.Time          `json:"issued_at"`
+	Source   string             `json:"source"`
+	Forecast []ForecastPoint    `json:"forecast"`
+	NWS      []TemperaturePoint `json:"nws"`
+}
+
+// ForecastPoint is one hourly forecast step.
+type ForecastPoint struct {
+	ValidAt   time.Time `json:"valid_at"`
+	LeadHours int       `json:"lead_hours"`
+	Median    float64   `json:"median"`
+}
+
+// TemperaturePoint is a timestamped temperature in degrees Fahrenheit.
+type TemperaturePoint struct {
+	Time        time.Time `json:"time"`
+	Temperature float64   `json:"temperature"`
+}
+
 // get performs an authenticated GET and decodes the JSON body into out.
 func (c *Client) get(ctx context.Context, path string, out any) error {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.baseURL+path, nil)
@@ -91,6 +120,9 @@ func (c *Client) get(ctx context.Context, path string, out any) error {
 	}
 	defer func() { _ = resp.Body.Close() }()
 
+	if resp.StatusCode == http.StatusNotFound {
+		return fmt.Errorf("%s: %w", path, errNotFound)
+	}
 	if resp.StatusCode != http.StatusOK {
 		return fmt.Errorf("unexpected status %d from %s", resp.StatusCode, path)
 	}
@@ -160,4 +192,17 @@ func (c *Client) FireDangerSummary(ctx context.Context) (FireDangerSummary, erro
 		return FireDangerSummary{}, err
 	}
 	return s, nil
+}
+
+// TemperatureForecastLatest returns the latest station temperature forecast.
+// It returns ErrNoForecast when no fresh forecast is available.
+func (c *Client) TemperatureForecastLatest(ctx context.Context) (TemperatureForecast, error) {
+	var f TemperatureForecast
+	if err := c.get(ctx, "/api/v1/temperature_forecast/latest", &f); err != nil {
+		if errors.Is(err, errNotFound) {
+			return TemperatureForecast{}, ErrNoForecast
+		}
+		return TemperatureForecast{}, err
+	}
+	return f, nil
 }
