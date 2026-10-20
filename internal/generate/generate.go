@@ -70,6 +70,8 @@ type Generator struct {
 	// loc is the station's local time zone, used to label station forecast
 	// times for the model.
 	loc *time.Location
+	// now is the clock; tests replace it.
+	now func() time.Time
 }
 
 // stationTimeZone is the home weather station's time zone.
@@ -104,6 +106,7 @@ func New(
 		gridPoint: gridPoint,
 		timeout:   timeout,
 		loc:       loadStationLocation(),
+		now:       time.Now,
 	}
 }
 

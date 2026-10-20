@@ -25,16 +25,24 @@ type stationForecastInput struct {
 }
 
 // condenseStationForecast reduces a 24h station forecast to its low and high
-// (with local times) and the NWS low and high over the same hours. It returns
-// nil when the forecast has no points.
-func condenseStationForecast(f lfpweather.TemperatureForecast, loc *time.Location) *stationForecastInput {
-	if len(f.Forecast) == 0 {
+// (with local times) and the NWS low and high over the same hours. Points
+// before the current hour are dropped, since a run can be a few hours old by
+// the time it is read. It returns nil when no points remain.
+func condenseStationForecast(f lfpweather.TemperatureForecast, loc *time.Location, now time.Time) *stationForecastInput {
+	currentHour := now.Truncate(time.Hour)
+	points := make([]lfpweather.ForecastPoint, 0, len(f.Forecast))
+	for _, p := range f.Forecast {
+		if !p.ValidAt.Before(currentHour) {
+			points = append(points, p)
+		}
+	}
+	if len(points) == 0 {
 		return nil
 	}
 
-	low, high := f.Forecast[0], f.Forecast[0]
-	valid := make(map[time.Time]struct{}, len(f.Forecast))
-	for _, p := range f.Forecast {
+	low, high := points[0], points[0]
+	valid := make(map[time.Time]struct{}, len(points))
+	for _, p := range points {
 		valid[p.ValidAt.UTC()] = struct{}{}
 		if p.Median < low.Median {
 			low = p

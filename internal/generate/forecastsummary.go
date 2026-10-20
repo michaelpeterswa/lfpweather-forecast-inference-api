@@ -73,7 +73,7 @@ Make the output sound like a human wrote it, with concise but friendly language 
 	{"name": "Tuesday", "start_time": "2024-10-22T06:00:00-07:00", "end_time": "2024-10-22T18:00:00-07:00", "temperature": 61, "detailed_forecast": "Sunny, with a high near 61. Light and variable wind.", "wind_speed": "2 to 5 mph", "wind_direction": "NW"},
 	{"name": "Tuesday Night", "start_time": "2024-10-22T18:00:00-07:00", "end_time": "2024-10-23T06:00:00-07:00", "temperature": 46, "detailed_forecast": "Increasing clouds, with a low around 46. South wind around 4 mph.", "wind_speed": "4 mph", "wind_direction": "S"}
 ], "station_forecast": {"description": "hyperlocal temperature forecast for the home weather station for the next 24 hours", "issued_at": "Mon 5 PM", "low_f": 41, "low_at": "Tue 6 AM", "high_f": 60, "high_at": "Tue 3 PM", "nws_low_f": 45, "nws_high_f": 61}}`,
-			Output: `{"summary": "Clear and cool tonight with a low around 45. Tuesday looks sunny with a high near 61 and light winds. Clouds build Tuesday night with a low around 46. The home weather station expects a colder start, bottoming out at 41 around 6 AM Tuesday versus 45 from the NWS.", "icon": "cloud-moon"}`,
+			Output: `{"summary": "Mostly clear tonight with a low around 45. Tuesday looks sunny with a high near 61 and light winds. Clouds build Tuesday night with a low around 46. The home weather station expects a colder start, bottoming out at 41 around 6 AM Tuesday versus 45 from the NWS.", "icon": "cloud-moon"}`,
 		},
 		{
 			Input: `{"periods": [
@@ -101,5 +101,5 @@ func (g *Generator) stationForecast(ctx context.Context) *stationForecastInput {
 		slog.Warn("could not get station forecast, summarizing without it", slog.String("error", err.Error()))
 		return nil
 	}
-	return condenseStationForecast(f, g.loc)
+	return condenseStationForecast(f, g.loc, g.now())
 }

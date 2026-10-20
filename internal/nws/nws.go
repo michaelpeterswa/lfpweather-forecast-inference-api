@@ -2,6 +2,7 @@ package nws
 
 import (
 	"encoding/json"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"strings"
@@ -90,6 +91,11 @@ func (nc *NWSClient) GetForecast(gridpoints string) (ForecastResponse, error) {
 	}
 	defer func() { _ = resp.Body.Close() }()
 
+	if resp.StatusCode != http.StatusOK {
+		slog.Error("unexpected forecast status", slog.Int("status", resp.StatusCode))
+		return ForecastResponse{}, fmt.Errorf("unexpected status %d from %s", resp.StatusCode, forecastURL)
+	}
+
 	var forecast ForecastResponse
 	if err := json.NewDecoder(resp.Body).Decode(&forecast); err != nil {
 		slog.Error("could not decode forecast", slog.String("error", err.Error()))
@@ -114,11 +120,14 @@ func (nc *NWSClient) GetSimplifiedForecastNPeriods(gridpoints string, n int) ([]
 		return nil, err
 	}
 
-	if n == -1 {
-		return forecastResponeToSimplifiedForecastPeriods(forecast), nil
+	// n == -1 means all periods. A larger n than NWS returned is clamped to
+	// what is available rather than failing.
+	periods := forecastResponeToSimplifiedForecastPeriods(forecast)
+	if n == -1 || n > len(periods) {
+		return periods, nil
 	}
 
-	return forecastResponeToSimplifiedForecastPeriods(forecast)[:n], nil
+	return periods[:n], nil
 }
 
 func forecastResponeToSimplifiedForecastPeriods(forecast ForecastResponse) []SimplifiedForecastPeriods {

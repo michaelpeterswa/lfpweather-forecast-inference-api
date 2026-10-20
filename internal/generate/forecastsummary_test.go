@@ -157,6 +157,8 @@ func TestForecastSummaryIncludesStationForecast(t *testing.T) {
 	t.Cleanup(lfpSrv.Close)
 	provider := &fakeProvider{content: testLLMAnswer}
 	g := newTestGenerator(t, provider, lfpSrv.URL, time.Second, newNWSServer(t).URL)
+	// 30 minutes after the run was issued, so every point is still ahead.
+	g.now = func() time.Time { return time.Date(2026, 10, 20, 4, 30, 0, 0, time.UTC) }
 
 	if _, err := g.buildForecastSummary(context.Background()); err != nil {
 		t.Fatalf("buildForecastSummary returned error: %v", err)
