@@ -2,6 +2,7 @@ package generate
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -118,5 +119,130 @@ func TestForecastSummaryUsesThreeNWSPeriods(t *testing.T) {
 	}
 	if !strings.Contains(req.SystemPrompt, "thermometer-snowflake") {
 		t.Errorf("system prompt is missing the icon list:\n%s", req.SystemPrompt)
+	}
+}
+
+// testStationForecast has its low (40.6 -> 41) at 13:00Z (6 AM PDT) and its
+// high at 22:00Z (3 PM PDT); NWS over the same hours runs 45..60.
+const testStationForecast = `{"issued_at":"2026-10-20T04:00:00Z","source":"timestral","forecast":[
+{"valid_at":"2026-10-20T05:00:00Z","lead_hours":1,"median":47.2},
+{"valid_at":"2026-10-20T13:00:00Z","lead_hours":9,"median":40.6},
+{"valid_at":"2026-10-20T22:00:00Z","lead_hours":18,"median":58.9}
+],"nws":[
+{"time":"2026-10-20T05:00:00Z","temperature":49},
+{"time":"2026-10-20T13:00:00Z","temperature":45},
+{"time":"2026-10-20T22:00:00Z","temperature":60}
+]}`
+
+// summaryInput decodes the forecast summary input from the user prompt.
+func summaryInput(t *testing.T, req llm.CompletionRequest) map[string]json.RawMessage {
+	t.Helper()
+	var in map[string]json.RawMessage
+	if err := json.Unmarshal([]byte(userInput(t, req)), &in); err != nil {
+		t.Fatalf("prompt input is not a JSON object: %v\ninput: %s", err, userInput(t, req))
+	}
+	if _, ok := in["periods"]; !ok {
+		t.Errorf("prompt input has no periods: %s", userInput(t, req))
+	}
+	return in
+}
+
+func TestForecastSummaryIncludesStationForecast(t *testing.T) {
+	var gotPath string
+	lfpSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotPath = r.URL.Path
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(testStationForecast))
+	}))
+	t.Cleanup(lfpSrv.Close)
+	provider := &fakeProvider{content: testLLMAnswer}
+	g := newTestGenerator(t, provider, lfpSrv.URL, time.Second, newNWSServer(t).URL)
+
+	if _, err := g.buildForecastSummary(context.Background()); err != nil {
+		t.Fatalf("buildForecastSummary returned error: %v", err)
+	}
+	if gotPath != "/api/v1/temperature_forecast/latest" {
+		t.Errorf("lfpweather path = %q, want /api/v1/temperature_forecast/latest", gotPath)
+	}
+
+	in := summaryInput(t, provider.lastRequest(t))
+	raw, ok := in["station_forecast"]
+	if !ok {
+		t.Fatalf("prompt input has no station_forecast: %v", in)
+	}
+	var sf stationForecastInput
+	if err := json.Unmarshal(raw, &sf); err != nil {
+		t.Fatalf("station_forecast does not decode: %v", err)
+	}
+	if sf.LowF != 41 {
+		t.Errorf("station_forecast.low_f = %d, want 41", sf.LowF)
+	}
+	if sf.LowAt != "Tue 6 AM" {
+		t.Errorf("station_forecast.low_at = %q, want %q (America/Los_Angeles)", sf.LowAt, "Tue 6 AM")
+	}
+	if sf.NWSLowF == nil || *sf.NWSLowF != 45 {
+		t.Errorf("station_forecast.nws_low_f = %v, want 45", sf.NWSLowF)
+	}
+}
+
+func TestForecastSummaryWithoutStationForecastOn404(t *testing.T) {
+	lfpSrv := httptest.NewServer(http.NotFoundHandler())
+	t.Cleanup(lfpSrv.Close)
+	provider := &fakeProvider{content: testLLMAnswer}
+	g := newTestGenerator(t, provider, lfpSrv.URL, time.Second, newNWSServer(t).URL)
+
+	res, err := g.buildForecastSummary(context.Background())
+	if err != nil {
+		t.Fatalf("buildForecastSummary returned error: %v", err)
+	}
+	if res == nil || res.Summary == "" {
+		t.Fatalf("result = %+v, want a summary", res)
+	}
+	if in := summaryInput(t, provider.lastRequest(t)); in["station_forecast"] != nil {
+		t.Errorf("prompt input has station_forecast on 404: %s", in["station_forecast"])
+	}
+}
+
+func TestForecastSummaryStationTimeout(t *testing.T) {
+	lfpSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		select {
+		case <-r.Context().Done():
+		case <-time.After(2 * time.Second):
+		}
+		_, _ = w.Write([]byte(testStationForecast))
+	}))
+	t.Cleanup(lfpSrv.Close)
+	provider := &fakeProvider{content: testLLMAnswer}
+	g := newTestGenerator(t, provider, lfpSrv.URL, 50*time.Millisecond, newNWSServer(t).URL)
+
+	res, err := g.buildForecastSummary(context.Background())
+	if err != nil {
+		t.Fatalf("buildForecastSummary returned error: %v", err)
+	}
+	if res == nil || res.Summary == "" {
+		t.Fatalf("result = %+v, want a summary", res)
+	}
+	if in := summaryInput(t, provider.lastRequest(t)); in["station_forecast"] != nil {
+		t.Errorf("prompt input has station_forecast after a timeout: %s", in["station_forecast"])
+	}
+}
+
+func TestForecastSummaryPromptExplainsStationForecast(t *testing.T) {
+	lfpSrv := httptest.NewServer(http.NotFoundHandler())
+	t.Cleanup(lfpSrv.Close)
+	provider := &fakeProvider{content: testLLMAnswer}
+	g := newTestGenerator(t, provider, lfpSrv.URL, time.Second, newNWSServer(t).URL)
+
+	if _, err := g.buildForecastSummary(context.Background()); err != nil {
+		t.Fatalf("buildForecastSummary returned error: %v", err)
+	}
+	prompt := provider.lastRequest(t).UserPrompt
+	for _, want := range []string{"station_forecast", "2°F", "never mention a station forecast", `"low_f": 41`} {
+		if !strings.Contains(prompt, want) {
+			t.Errorf("user prompt missing %q", want)
+		}
+	}
+	if n := strings.Count(prompt, "<example>"); n != 3 {
+		t.Errorf("prompt has %d few-shot examples, want 3", n)
 	}
 }

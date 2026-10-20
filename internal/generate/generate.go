@@ -67,6 +67,23 @@ type Generator struct {
 	dragonfly *dragonfly.DragonflyClient
 	gridPoint string
 	timeout   time.Duration
+	// loc is the station's local time zone, used to label station forecast
+	// times for the model.
+	loc *time.Location
+}
+
+// stationTimeZone is the home weather station's time zone.
+const stationTimeZone = "America/Los_Angeles"
+
+// loadStationLocation loads the station time zone, falling back to UTC (and
+// logging once) so a missing zoneinfo database never breaks a summary.
+func loadStationLocation() *time.Location {
+	loc, err := time.LoadLocation(stationTimeZone)
+	if err != nil {
+		slog.Warn("could not load station time zone, using UTC", slog.String("zone", stationTimeZone), slog.String("error", err.Error()))
+		return time.UTC
+	}
+	return loc
 }
 
 // New returns a Generator. The timeout bounds each summary during a worker
@@ -86,6 +103,7 @@ func New(
 		dragonfly: dragonflyClient,
 		gridPoint: gridPoint,
 		timeout:   timeout,
+		loc:       loadStationLocation(),
 	}
 }
 
