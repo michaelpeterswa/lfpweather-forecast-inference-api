@@ -2,13 +2,19 @@ package nws
 
 import (
 	"encoding/json"
+	"fmt"
 	"log/slog"
 	"net/http"
+	"strings"
 	"time"
 )
 
+// defaultBaseURL is the NWS API root.
+const defaultBaseURL = "https://api.weather.gov"
+
 type NWSClient struct {
 	httpClient *http.Client
+	baseURL    string
 }
 
 type ForecastResponse struct {
@@ -62,13 +68,21 @@ type SimplifiedForecastPeriods struct {
 }
 
 func NewNWSClient(httpClient *http.Client) *NWSClient {
+	return NewNWSClientWithBaseURL(httpClient, defaultBaseURL)
+}
+
+// NewNWSClientWithBaseURL returns a client that calls the NWS API at baseURL
+// instead of api.weather.gov. Tests use it to point the client at a local
+// server.
+func NewNWSClientWithBaseURL(httpClient *http.Client, baseURL string) *NWSClient {
 	return &NWSClient{
 		httpClient: httpClient,
+		baseURL:    strings.TrimRight(baseURL, "/"),
 	}
 }
 
 func (nc *NWSClient) GetForecast(gridpoints string) (ForecastResponse, error) {
-	forecastURL := "https://api.weather.gov/gridpoints/" + gridpoints + "/forecast"
+	forecastURL := nc.baseURL + "/gridpoints/" + gridpoints + "/forecast"
 	slog.Info("getting forecast", slog.String("url", forecastURL))
 	resp, err := nc.httpClient.Get(forecastURL)
 	if err != nil {
@@ -76,6 +90,11 @@ func (nc *NWSClient) GetForecast(gridpoints string) (ForecastResponse, error) {
 		return ForecastResponse{}, err
 	}
 	defer func() { _ = resp.Body.Close() }()
+
+	if resp.StatusCode != http.StatusOK {
+		slog.Error("unexpected forecast status", slog.Int("status", resp.StatusCode))
+		return ForecastResponse{}, fmt.Errorf("unexpected status %d from %s", resp.StatusCode, forecastURL)
+	}
 
 	var forecast ForecastResponse
 	if err := json.NewDecoder(resp.Body).Decode(&forecast); err != nil {
@@ -101,11 +120,14 @@ func (nc *NWSClient) GetSimplifiedForecastNPeriods(gridpoints string, n int) ([]
 		return nil, err
 	}
 
-	if n == -1 {
-		return forecastResponeToSimplifiedForecastPeriods(forecast), nil
+	// n == -1 means all periods. A larger n than NWS returned is clamped to
+	// what is available rather than failing.
+	periods := forecastResponeToSimplifiedForecastPeriods(forecast)
+	if n == -1 || n > len(periods) {
+		return periods, nil
 	}
 
-	return forecastResponeToSimplifiedForecastPeriods(forecast)[:n], nil
+	return periods[:n], nil
 }
 
 func forecastResponeToSimplifiedForecastPeriods(forecast ForecastResponse) []SimplifiedForecastPeriods {

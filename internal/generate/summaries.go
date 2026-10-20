@@ -91,7 +91,7 @@ Make the output sound like a human wrote it, with concise but friendly language 
 		},
 	}
 
-	return g.complete(ctx, systemPrompt, task, shots, string(inputJSON))
+	return g.complete(ctx, summaryMaxTokens, systemPrompt, task, shots, string(inputJSON))
 }
 
 // smokeOutlookInput pairs the latest air quality reading with the near-term
@@ -169,7 +169,7 @@ Make the output sound like a human wrote it, with concise but friendly language 
 		},
 	}
 
-	return g.complete(ctx, systemPrompt, task, shots, string(inputJSON))
+	return g.complete(ctx, summaryMaxTokens, systemPrompt, task, shots, string(inputJSON))
 }
 
 // fireWeatherInput is the part of the fire danger summary the read needs.
@@ -247,5 +247,5 @@ Make the output sound like a human wrote it, with concise but friendly language 
 		},
 	}
 
-	return g.complete(ctx, systemPrompt, task, shots, string(inputJSON))
+	return g.complete(ctx, summaryMaxTokens, systemPrompt, task, shots, string(inputJSON))
 }

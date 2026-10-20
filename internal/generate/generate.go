@@ -1,6 +1,6 @@
 // Package generate builds the headline summaries that combine live station
-// data from the lfpweather-api with the NWS forecast: current conditions, a
-// smoke outlook, and a fire weather read. Both the HTTP handlers and the
+// data from the lfpweather-api with the NWS forecast: the forecast summary,
+// current conditions, a smoke outlook, and a fire weather read. Both the HTTP handlers and the
 // background worker use it, so the prompts and cache logic live in one place.
 package generate
 
@@ -23,6 +23,7 @@ import (
 // Cache key suffixes for each generated summary. The Dragonfly key prefix is
 // prepended at write time.
 const (
+	KeyForecastSummary   = "forecast-summary"
 	KeyCurrentConditions = "current-conditions"
 	KeySmokeOutlook      = "smoke-outlook"
 	KeyFireWeather       = "fire-weather"
@@ -66,6 +67,25 @@ type Generator struct {
 	dragonfly *dragonfly.DragonflyClient
 	gridPoint string
 	timeout   time.Duration
+	// loc is the station's local time zone, used to label station forecast
+	// times for the model.
+	loc *time.Location
+	// now is the clock; tests replace it.
+	now func() time.Time
+}
+
+// stationTimeZone is the home weather station's time zone.
+const stationTimeZone = "America/Los_Angeles"
+
+// loadStationLocation loads the station time zone, falling back to UTC (and
+// logging once) so a missing zoneinfo database never breaks a summary.
+func loadStationLocation() *time.Location {
+	loc, err := time.LoadLocation(stationTimeZone)
+	if err != nil {
+		slog.Warn("could not load station time zone, using UTC", slog.String("zone", stationTimeZone), slog.String("error", err.Error()))
+		return time.UTC
+	}
+	return loc
 }
 
 // New returns a Generator. The timeout bounds each summary during a worker
@@ -85,12 +105,20 @@ func New(
 		dragonfly: dragonflyClient,
 		gridPoint: gridPoint,
 		timeout:   timeout,
+		loc:       loadStationLocation(),
+		now:       time.Now,
 	}
 }
 
 // buildFunc fetches the inputs and produces a summary. It does not set
 // LastUpdated or touch the cache; produce does that.
 type buildFunc func(ctx context.Context) (*Result, error)
+
+// GetForecastSummary returns the cached forecast summary, or generates and
+// caches it on a miss.
+func (g *Generator) GetForecastSummary(ctx context.Context) (*Result, error) {
+	return g.getOrProduce(ctx, KeyForecastSummary, g.buildForecastSummary)
+}
 
 // GetCurrentConditions returns the cached current conditions summary, or
 // generates and caches it on a miss.
@@ -110,7 +138,7 @@ func (g *Generator) GetFireWeather(ctx context.Context) (*Result, error) {
 	return g.getOrProduce(ctx, KeyFireWeather, g.buildFireWeather)
 }
 
-// RefreshAll regenerates and caches all three summaries at once. The
+// RefreshAll regenerates and caches all four summaries at once. The
 // background worker calls it. Each summary runs with its own timeout, and a
 // failure in one does not stop the others.
 func (g *Generator) RefreshAll(ctx context.Context) {
@@ -119,6 +147,7 @@ func (g *Generator) RefreshAll(ctx context.Context) {
 		key   string
 		build buildFunc
 	}{
+		{"forecast summary", KeyForecastSummary, g.buildForecastSummary},
 		{"current conditions", KeyCurrentConditions, g.buildCurrentConditions},
 		{"smoke outlook", KeySmokeOutlook, g.buildSmokeOutlook},
 		{"fire weather", KeyFireWeather, g.buildFireWeather},
@@ -192,13 +221,21 @@ type llmOutput struct {
 	Icon    string `json:"icon"`
 }
 
-// complete runs one prompt through the provider and parses the {summary, icon}
-// output.
-func (g *Generator) complete(ctx context.Context, systemPrompt, task string, shots []shot, input string) (*Result, error) {
+// Output token budgets. The forecast summary keeps the 4096 it always had:
+// reasoning models that ignore a no-think request spend reasoning tokens
+// against this limit, and a smaller budget truncates the JSON answer.
+const (
+	summaryMaxTokens         = 1024
+	forecastSummaryMaxTokens = 4096
+)
+
+// complete runs one prompt through the provider, allowing up to maxTokens of
+// output, and parses the {summary, icon} output.
+func (g *Generator) complete(ctx context.Context, maxTokens int64, systemPrompt, task string, shots []shot, input string) (*Result, error) {
 	response, err := g.llm.Complete(ctx, llm.CompletionRequest{
 		SystemPrompt: systemPrompt,
 		UserPrompt:   buildFinalPrompt(task, shots, input),
-		MaxTokens:    1024,
+		MaxTokens:    maxTokens,
 	})
 	if err != nil {
 		return nil, err

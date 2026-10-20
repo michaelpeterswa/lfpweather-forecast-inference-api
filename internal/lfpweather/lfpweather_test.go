@@ -2,6 +2,7 @@ package lfpweather
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -109,5 +110,48 @@ func TestNewClientTrimsTrailingSlash(t *testing.T) {
 	client := NewClient(http.DefaultClient, "https://example.com/", "k")
 	if client.baseURL != "https://example.com" {
 		t.Errorf("baseURL = %q, want https://example.com", client.baseURL)
+	}
+}
+
+func TestTemperatureForecastLatest(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/v1/temperature_forecast/latest" {
+			t.Errorf("path = %q", r.URL.Path)
+		}
+		if got := r.Header.Get("X-API-Key"); got != "k" {
+			t.Errorf("X-API-Key = %q", got)
+		}
+		_, _ = w.Write([]byte(`{"issued_at":"2026-10-20T01:00:00Z","source":"timestral","model":"m",
+"forecast":[{"valid_at":"2026-10-20T02:00:00Z","lead_hours":1,"median":49.9,"p10":49.3,"p90":50.4}],
+"nws":[{"time":"2026-10-20T02:00:00Z","temperature":53}],
+"observed":[{"time":"2026-10-19T13:00:00Z","temperature":45.9}]}`))
+	}))
+	defer srv.Close()
+
+	got, err := NewClient(srv.Client(), srv.URL, "k").TemperatureForecastLatest(context.Background())
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if got.Source != "timestral" || !got.IssuedAt.Equal(time.Date(2026, 10, 20, 1, 0, 0, 0, time.UTC)) {
+		t.Errorf("header fields = %+v", got)
+	}
+	if len(got.Forecast) != 1 || got.Forecast[0].LeadHours != 1 || got.Forecast[0].Median != 49.9 {
+		t.Errorf("forecast = %+v", got.Forecast)
+	}
+	if len(got.NWS) != 1 || got.NWS[0].Temperature != 53 {
+		t.Errorf("nws = %+v", got.NWS)
+	}
+}
+
+func TestTemperatureForecastLatestNotFound(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/problem+json")
+		w.WriteHeader(http.StatusNotFound)
+	}))
+	defer srv.Close()
+
+	_, err := NewClient(srv.Client(), srv.URL, "k").TemperatureForecastLatest(context.Background())
+	if !errors.Is(err, ErrNoForecast) {
+		t.Errorf("err = %v, want ErrNoForecast", err)
 	}
 }
