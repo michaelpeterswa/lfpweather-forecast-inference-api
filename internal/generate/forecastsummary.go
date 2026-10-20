@@ -53,7 +53,8 @@ Do not comment twice on the same weather condition.
 Focus mainly on the daytime periods.
 Avoid editorializing or making assumptions.
 Avoid referring to "periods" in the output.
-If "station_forecast" is present, add at most one sentence about the station's forecast low or high and when it occurs. Mention the NWS forecast in that sentence only if the station's value differs from the matching NWS value by 2°F or more.
+If "station_forecast" is present, add at most one sentence about the home weather station's forecast low or high and when it occurs. Mention the NWS forecast in that sentence only if the station's value differs from the matching NWS value by 2°F or more.
+If the station's low and high each differ from the matching NWS values by less than 2°F, do not add a station sentence; the forecast already covers it.
 If "station_forecast" is absent, never mention a station forecast.
 Make the output sound like a human wrote it, with concise but friendly language and complete sentences.`
 
@@ -72,7 +73,7 @@ Make the output sound like a human wrote it, with concise but friendly language 
 	{"name": "Tuesday", "start_time": "2024-10-22T06:00:00-07:00", "end_time": "2024-10-22T18:00:00-07:00", "temperature": 61, "detailed_forecast": "Sunny, with a high near 61. Light and variable wind.", "wind_speed": "2 to 5 mph", "wind_direction": "NW"},
 	{"name": "Tuesday Night", "start_time": "2024-10-22T18:00:00-07:00", "end_time": "2024-10-23T06:00:00-07:00", "temperature": 46, "detailed_forecast": "Increasing clouds, with a low around 46. South wind around 4 mph.", "wind_speed": "4 mph", "wind_direction": "S"}
 ], "station_forecast": {"description": "hyperlocal temperature forecast for the home weather station for the next 24 hours", "issued_at": "Mon 5 PM", "low_f": 41, "low_at": "Tue 6 AM", "high_f": 60, "high_at": "Tue 3 PM", "nws_low_f": 45, "nws_high_f": 61}}`,
-			Output: `{"summary": "Clear and cool tonight with a low around 45. Tuesday looks sunny with a high near 61 and light winds. Clouds build Tuesday night with a low around 46. The backyard station expects a colder start, bottoming out at 41 around 6 AM Tuesday versus 45 from the NWS.", "icon": "cloud-moon"}`,
+			Output: `{"summary": "Clear and cool tonight with a low around 45. Tuesday looks sunny with a high near 61 and light winds. Clouds build Tuesday night with a low around 46. The home weather station expects a colder start, bottoming out at 41 around 6 AM Tuesday versus 45 from the NWS.", "icon": "cloud-moon"}`,
 		},
 		{
 			Input: `{"periods": [
@@ -80,11 +81,11 @@ Make the output sound like a human wrote it, with concise but friendly language 
 	{"name": "Tonight", "start_time": "2024-08-10T18:00:00-07:00", "end_time": "2024-08-11T06:00:00-07:00", "temperature": 53, "detailed_forecast": "Mostly cloudy, with a low around 53. Southwest wind around 5 mph.", "wind_speed": "5 mph", "wind_direction": "SW"},
 	{"name": "Sunday", "start_time": "2024-08-11T06:00:00-07:00", "end_time": "2024-08-11T18:00:00-07:00", "temperature": 72, "detailed_forecast": "Mostly sunny, with a high near 72. West wind 2 to 6 mph.", "wind_speed": "2 to 6 mph", "wind_direction": "W"}
 ], "station_forecast": {"description": "hyperlocal temperature forecast for the home weather station for the next 24 hours", "issued_at": "Sat 5 AM", "low_f": 52, "low_at": "Sun 5 AM", "high_f": 68, "high_at": "Sat 3 PM", "nws_low_f": 53, "nws_high_f": 69}}`,
-			Output: `{"summary": "Partly sunny today with a high near 69 and a light southwest breeze. Tonight turns mostly cloudy with a low around 53. Sunday brings more sun and a high near 72. The backyard station expects today's high of 68 around 3 PM.", "icon": "cloud-sun"}`,
+			Output: `{"summary": "Partly sunny today with a high near 69 and a light southwest breeze. Tonight turns mostly cloudy with a low around 53. Sunday brings more sun and a high near 72.", "icon": "cloud-sun"}`,
 		},
 	}
 
-	return g.complete(ctx, systemPrompt, task, shots, string(inputJSON))
+	return g.complete(ctx, forecastSummaryMaxTokens, systemPrompt, task, shots, string(inputJSON))
 }
 
 // stationForecast fetches and condenses the latest station temperature

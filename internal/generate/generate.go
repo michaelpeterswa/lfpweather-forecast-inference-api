@@ -218,13 +218,21 @@ type llmOutput struct {
 	Icon    string `json:"icon"`
 }
 
-// complete runs one prompt through the provider and parses the {summary, icon}
-// output.
-func (g *Generator) complete(ctx context.Context, systemPrompt, task string, shots []shot, input string) (*Result, error) {
+// Output token budgets. The forecast summary keeps the 4096 it always had:
+// reasoning models that ignore a no-think request spend reasoning tokens
+// against this limit, and a smaller budget truncates the JSON answer.
+const (
+	summaryMaxTokens         = 1024
+	forecastSummaryMaxTokens = 4096
+)
+
+// complete runs one prompt through the provider, allowing up to maxTokens of
+// output, and parses the {summary, icon} output.
+func (g *Generator) complete(ctx context.Context, maxTokens int64, systemPrompt, task string, shots []shot, input string) (*Result, error) {
 	response, err := g.llm.Complete(ctx, llm.CompletionRequest{
 		SystemPrompt: systemPrompt,
 		UserPrompt:   buildFinalPrompt(task, shots, input),
-		MaxTokens:    1024,
+		MaxTokens:    maxTokens,
 	})
 	if err != nil {
 		return nil, err

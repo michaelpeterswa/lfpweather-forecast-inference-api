@@ -246,3 +246,62 @@ func TestForecastSummaryPromptExplainsStationForecast(t *testing.T) {
 		t.Errorf("prompt has %d few-shot examples, want 3", n)
 	}
 }
+
+func TestForecastSummaryMaxTokens(t *testing.T) {
+	lfpSrv := httptest.NewServer(http.NotFoundHandler())
+	t.Cleanup(lfpSrv.Close)
+	provider := &fakeProvider{content: testLLMAnswer}
+	g := newTestGenerator(t, provider, lfpSrv.URL, time.Second, newNWSServer(t).URL)
+
+	if _, err := g.buildForecastSummary(context.Background()); err != nil {
+		t.Fatalf("buildForecastSummary returned error: %v", err)
+	}
+	if got := provider.lastRequest(t).MaxTokens; got != 4096 {
+		t.Errorf("forecast summary MaxTokens = %d, want 4096", got)
+	}
+}
+
+func TestCurrentConditionsMaxTokens(t *testing.T) {
+	lfpSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte(`{"time":"2026-10-19T20:00:00Z","last":50}`))
+	}))
+	t.Cleanup(lfpSrv.Close)
+	provider := &fakeProvider{content: testLLMAnswer}
+	g := newTestGenerator(t, provider, lfpSrv.URL, time.Second, newNWSServer(t).URL)
+
+	if _, err := g.buildCurrentConditions(context.Background()); err != nil {
+		t.Fatalf("buildCurrentConditions returned error: %v", err)
+	}
+	if got := provider.lastRequest(t).MaxTokens; got != 1024 {
+		t.Errorf("current conditions MaxTokens = %d, want 1024", got)
+	}
+}
+
+func TestForecastSummaryPromptAgreeCase(t *testing.T) {
+	lfpSrv := httptest.NewServer(http.NotFoundHandler())
+	t.Cleanup(lfpSrv.Close)
+	provider := &fakeProvider{content: testLLMAnswer}
+	g := newTestGenerator(t, provider, lfpSrv.URL, time.Second, newNWSServer(t).URL)
+
+	if _, err := g.buildForecastSummary(context.Background()); err != nil {
+		t.Fatalf("buildForecastSummary returned error: %v", err)
+	}
+	prompt := provider.lastRequest(t).UserPrompt
+	if !strings.Contains(prompt, "less than 2°F, do not add a station sentence") {
+		t.Error("prompt does not state the agree case")
+	}
+	if strings.Contains(prompt, "backyard") {
+		t.Error(`prompt uses "backyard"; use "home weather station" throughout`)
+	}
+
+	// The third example is the agree case: its output has no station sentence.
+	examples := strings.Split(prompt, "<example>")
+	if len(examples) != 4 {
+		t.Fatalf("got %d examples, want 3", len(examples)-1)
+	}
+	agree := examples[3]
+	out := agree[strings.Index(agree, "\noutput: "):]
+	if strings.Contains(strings.ToLower(out), "station") {
+		t.Errorf("agree example output mentions the station: %s", out)
+	}
+}
