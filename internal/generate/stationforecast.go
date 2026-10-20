@@ -22,6 +22,20 @@ type stationForecastInput struct {
 	HighAt      string `json:"high_at"`
 	NWSLowF     *int   `json:"nws_low_f,omitempty"`
 	NWSHighF    *int   `json:"nws_high_f,omitempty"`
+
+	// Notable is the one station value worth mentioning against the NWS, set
+	// only when it differs from the NWS by notableThresholdF or more.
+	Notable *notableDifference `json:"notable,omitempty"`
+}
+
+// notableDifference describes the station low or high that differs most from
+// the NWS value over the same hours.
+type notableDifference struct {
+	Which     string `json:"which"` // "low" or "high"
+	StationF  int    `json:"station_f"`
+	At        string `json:"at"`
+	NWSF      int    `json:"nws_f"`
+	Direction string `json:"direction"` // "colder" or "warmer" than the NWS
 }
 
 // condenseStationForecast reduces a 24h station forecast to its low and high
@@ -77,8 +91,44 @@ func condenseStationForecast(f lfpweather.TemperatureForecast, loc *time.Locatio
 	if found {
 		l, h := roundF(nwsLow), roundF(nwsHigh)
 		out.NWSLowF, out.NWSHighF = &l, &h
+		out.Notable = notable(out, l, h)
 	}
 	return out
+}
+
+// notableThresholdF is the smallest station-vs-NWS difference, in whole
+// degrees Fahrenheit, worth a mention.
+const notableThresholdF = 2
+
+// notable picks the station low or high that differs most from the matching
+// NWS value, or nil when neither differs by notableThresholdF or more. On a
+// tie the low wins.
+func notable(s *stationForecastInput, nwsLow, nwsHigh int) *notableDifference {
+	low := notableDifference{Which: "low", StationF: s.LowF, At: s.LowAt, NWSF: nwsLow}
+	high := notableDifference{Which: "high", StationF: s.HighF, At: s.HighAt, NWSF: nwsHigh}
+	diffLow, diffHigh := absInt(low.StationF-low.NWSF), absInt(high.StationF-high.NWSF)
+
+	var pick notableDifference
+	switch {
+	case diffLow >= notableThresholdF && diffLow >= diffHigh:
+		pick = low
+	case diffHigh >= notableThresholdF:
+		pick = high
+	default:
+		return nil
+	}
+	pick.Direction = "warmer"
+	if pick.StationF < pick.NWSF {
+		pick.Direction = "colder"
+	}
+	return &pick
+}
+
+func absInt(x int) int {
+	if x < 0 {
+		return -x
+	}
+	return x
 }
 
 func roundF(x float64) int { return int(math.Round(x)) }
