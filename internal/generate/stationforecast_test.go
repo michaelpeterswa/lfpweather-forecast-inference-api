@@ -171,3 +171,63 @@ func TestCondenseAllPast(t *testing.T) {
 		t.Errorf("expected nil, got %+v", got)
 	}
 }
+
+func condenseWith(t *testing.T, stationLow, stationHigh, nwsLow, nwsHigh float64) *stationForecastInput {
+	t.Helper()
+	loc := testLoc(t)
+	issued := time.Date(2026, 10, 19, 23, 0, 0, 0, loc)
+	m := flat(24, (stationLow+stationHigh)/2)
+	m[2] = stationLow
+	m[10] = stationHigh
+	f := buildForecast(issued, m)
+	f.NWS = []lfpweather.TemperaturePoint{
+		{Time: issued.Add(3 * time.Hour), Temperature: nwsLow},
+		{Time: issued.Add(11 * time.Hour), Temperature: nwsHigh},
+	}
+	return condenseStationForecast(f, loc, issued)
+}
+
+func TestCondenseNotableLowOnly(t *testing.T) {
+	got := condenseWith(t, 41, 59, 44, 60)
+	if got.Notable == nil {
+		t.Fatal("Notable = nil, want low")
+	}
+	n := got.Notable
+	if n.Which != "low" || n.StationF != 41 || n.NWSF != 44 || n.Direction != "colder" || n.At != got.LowAt {
+		t.Errorf("notable = %+v", *n)
+	}
+	got = condenseWith(t, 47, 59, 44, 60)
+	if got.Notable == nil || got.Notable.Direction != "warmer" {
+		t.Errorf("notable = %+v, want warmer", got.Notable)
+	}
+}
+
+func TestCondenseNotableBothPicksLarger(t *testing.T) {
+	got := condenseWith(t, 43, 64, 45, 60)
+	if got.Notable == nil || got.Notable.Which != "high" || got.Notable.StationF != 64 || got.Notable.NWSF != 60 ||
+		got.Notable.Direction != "warmer" || got.Notable.At != got.HighAt {
+		t.Errorf("notable = %+v", got.Notable)
+	}
+}
+
+func TestCondenseNotableTiePrefersLow(t *testing.T) {
+	got := condenseWith(t, 43, 62, 45, 60)
+	if got.Notable == nil || got.Notable.Which != "low" || got.Notable.Direction != "colder" {
+		t.Errorf("notable = %+v", got.Notable)
+	}
+}
+
+func TestCondenseNotableNone(t *testing.T) {
+	if got := condenseWith(t, 44, 59, 45, 60); got.Notable != nil {
+		t.Errorf("notable = %+v, want nil", *got.Notable)
+	}
+}
+
+func TestCondenseNotableNoNWS(t *testing.T) {
+	loc := testLoc(t)
+	issued := time.Date(2026, 10, 19, 23, 0, 0, 0, loc)
+	got := condenseStationForecast(buildForecast(issued, flat(24, 50)), loc, issued)
+	if got.Notable != nil {
+		t.Errorf("notable = %+v, want nil", *got.Notable)
+	}
+}

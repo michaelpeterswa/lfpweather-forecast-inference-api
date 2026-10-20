@@ -239,13 +239,13 @@ func TestForecastSummaryPromptExplainsStationForecast(t *testing.T) {
 		t.Fatalf("buildForecastSummary returned error: %v", err)
 	}
 	prompt := provider.lastRequest(t).UserPrompt
-	for _, want := range []string{"station_forecast", "2°F", "never mention a station forecast", `"low_f": 41`} {
+	for _, want := range []string{"station_forecast", `"notable"`, "never mention a station forecast", `"low_f": 41`} {
 		if !strings.Contains(prompt, want) {
 			t.Errorf("user prompt missing %q", want)
 		}
 	}
-	if n := strings.Count(prompt, "<example>"); n != 3 {
-		t.Errorf("prompt has %d few-shot examples, want 3", n)
+	if n := strings.Count(prompt, "<example>"); n != 4 {
+		t.Errorf("prompt has %d few-shot examples, want 4", n)
 	}
 }
 
@@ -289,21 +289,69 @@ func TestForecastSummaryPromptAgreeCase(t *testing.T) {
 		t.Fatalf("buildForecastSummary returned error: %v", err)
 	}
 	prompt := provider.lastRequest(t).UserPrompt
-	if !strings.Contains(prompt, "less than 2°F, do not add a station sentence") {
-		t.Error("prompt does not state the agree case")
-	}
 	if strings.Contains(prompt, "backyard") {
 		t.Error(`prompt uses "backyard"; use "home weather station" throughout`)
 	}
 
-	// The third example is the agree case: its output has no station sentence.
 	examples := strings.Split(prompt, "<example>")
-	if len(examples) != 4 {
-		t.Fatalf("got %d examples, want 3", len(examples)-1)
+	if len(examples) != 5 {
+		t.Fatalf("got %d examples, want 4", len(examples)-1)
 	}
-	agree := examples[3]
-	out := agree[strings.Index(agree, "\noutput: "):]
-	if strings.Contains(strings.ToLower(out), "station") {
-		t.Errorf("agree example output mentions the station: %s", out)
+
+	// Every example whose input lacks "notable" must not mention the station.
+	for i, ex := range examples[1:] {
+		ex, _, _ = strings.Cut(ex, "</example>")
+		in, out, _ := strings.Cut(ex, "\noutput: ")
+		if !strings.Contains(in, "notable") && strings.Contains(strings.ToLower(out), "station") {
+			t.Errorf("example %d has no notable but its output mentions the station: %s", i+1, out)
+		}
+	}
+}
+
+func TestForecastSummaryPromptNotableRule(t *testing.T) {
+	lfpSrv := httptest.NewServer(http.NotFoundHandler())
+	t.Cleanup(lfpSrv.Close)
+	provider := &fakeProvider{content: testLLMAnswer}
+	g := newTestGenerator(t, provider, lfpSrv.URL, time.Second, newNWSServer(t).URL)
+
+	if _, err := g.buildForecastSummary(context.Background()); err != nil {
+		t.Fatalf("buildForecastSummary returned error: %v", err)
+	}
+	prompt := provider.lastRequest(t).UserPrompt
+	for _, want := range []string{
+		`If "station_forecast.notable" is present, add exactly one sentence`,
+		`If "notable" is absent, do not add any station sentence`,
+		"Never compare any other values",
+	} {
+		if !strings.Contains(prompt, want) {
+			t.Errorf("prompt missing %q", want)
+		}
+	}
+	if strings.Contains(prompt, "differs from the matching NWS value by 2°F or more") {
+		t.Error("prompt still asks the model to judge the 2°F difference")
+	}
+
+	// The fourth example differs by 1°F on the high and 3°F on the low: only
+	// the low is mentioned.
+	examples := strings.Split(prompt, "<example>")
+	if len(examples) != 5 {
+		t.Fatalf("got %d examples, want 4", len(examples)-1)
+	}
+	ex4, _, _ := strings.Cut(examples[4], "</example>")
+	in, out, _ := strings.Cut(ex4, "\noutput: ")
+	if !strings.Contains(in, `"which": "low"`) {
+		t.Errorf("fourth example input lacks a low notable: %s", in)
+	}
+	var stationSentence string
+	for _, sentence := range strings.SplitAfter(out, ". ") {
+		if strings.Contains(strings.ToLower(sentence), "station") {
+			stationSentence = strings.ToLower(sentence)
+		}
+	}
+	if stationSentence == "" {
+		t.Fatalf("fourth example output has no station sentence: %s", out)
+	}
+	if !strings.Contains(stationSentence, "low") || strings.Contains(stationSentence, "high") {
+		t.Errorf("fourth example station sentence should mention the low and not the high: %s", stationSentence)
 	}
 }
