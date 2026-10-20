@@ -4,11 +4,16 @@ import (
 	"encoding/json"
 	"log/slog"
 	"net/http"
+	"strings"
 	"time"
 )
 
+// defaultBaseURL is the NWS API root.
+const defaultBaseURL = "https://api.weather.gov"
+
 type NWSClient struct {
 	httpClient *http.Client
+	baseURL    string
 }
 
 type ForecastResponse struct {
@@ -62,13 +67,21 @@ type SimplifiedForecastPeriods struct {
 }
 
 func NewNWSClient(httpClient *http.Client) *NWSClient {
+	return NewNWSClientWithBaseURL(httpClient, defaultBaseURL)
+}
+
+// NewNWSClientWithBaseURL returns a client that calls the NWS API at baseURL
+// instead of api.weather.gov. Tests use it to point the client at a local
+// server.
+func NewNWSClientWithBaseURL(httpClient *http.Client, baseURL string) *NWSClient {
 	return &NWSClient{
 		httpClient: httpClient,
+		baseURL:    strings.TrimRight(baseURL, "/"),
 	}
 }
 
 func (nc *NWSClient) GetForecast(gridpoints string) (ForecastResponse, error) {
-	forecastURL := "https://api.weather.gov/gridpoints/" + gridpoints + "/forecast"
+	forecastURL := nc.baseURL + "/gridpoints/" + gridpoints + "/forecast"
 	slog.Info("getting forecast", slog.String("url", forecastURL))
 	resp, err := nc.httpClient.Get(forecastURL)
 	if err != nil {

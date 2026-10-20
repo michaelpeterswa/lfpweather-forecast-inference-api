@@ -1,6 +1,6 @@
 // Package generate builds the headline summaries that combine live station
-// data from the lfpweather-api with the NWS forecast: current conditions, a
-// smoke outlook, and a fire weather read. Both the HTTP handlers and the
+// data from the lfpweather-api with the NWS forecast: the forecast summary,
+// current conditions, a smoke outlook, and a fire weather read. Both the HTTP handlers and the
 // background worker use it, so the prompts and cache logic live in one place.
 package generate
 
@@ -23,6 +23,7 @@ import (
 // Cache key suffixes for each generated summary. The Dragonfly key prefix is
 // prepended at write time.
 const (
+	KeyForecastSummary   = "forecast-summary"
 	KeyCurrentConditions = "current-conditions"
 	KeySmokeOutlook      = "smoke-outlook"
 	KeyFireWeather       = "fire-weather"
@@ -92,6 +93,12 @@ func New(
 // LastUpdated or touch the cache; produce does that.
 type buildFunc func(ctx context.Context) (*Result, error)
 
+// GetForecastSummary returns the cached forecast summary, or generates and
+// caches it on a miss.
+func (g *Generator) GetForecastSummary(ctx context.Context) (*Result, error) {
+	return g.getOrProduce(ctx, KeyForecastSummary, g.buildForecastSummary)
+}
+
 // GetCurrentConditions returns the cached current conditions summary, or
 // generates and caches it on a miss.
 func (g *Generator) GetCurrentConditions(ctx context.Context) (*Result, error) {
@@ -110,7 +117,7 @@ func (g *Generator) GetFireWeather(ctx context.Context) (*Result, error) {
 	return g.getOrProduce(ctx, KeyFireWeather, g.buildFireWeather)
 }
 
-// RefreshAll regenerates and caches all three summaries at once. The
+// RefreshAll regenerates and caches all four summaries at once. The
 // background worker calls it. Each summary runs with its own timeout, and a
 // failure in one does not stop the others.
 func (g *Generator) RefreshAll(ctx context.Context) {
@@ -119,6 +126,7 @@ func (g *Generator) RefreshAll(ctx context.Context) {
 		key   string
 		build buildFunc
 	}{
+		{"forecast summary", KeyForecastSummary, g.buildForecastSummary},
 		{"current conditions", KeyCurrentConditions, g.buildCurrentConditions},
 		{"smoke outlook", KeySmokeOutlook, g.buildSmokeOutlook},
 		{"fire weather", KeyFireWeather, g.buildFireWeather},

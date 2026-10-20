@@ -67,17 +67,12 @@ func (w *ForecastWorker) Start(ctx context.Context) {
 	}
 }
 
-// runGeneration runs both forecast summary and detailed generation
+// runGeneration regenerates the detailed forecast periods and, through the
+// generator, every headline summary.
 func (w *ForecastWorker) runGeneration(ctx context.Context) {
 	slog.Info("running forecast generation")
 
-	// Run all generations concurrently
-	done := make(chan struct{}, 3)
-
-	go func() {
-		w.generateForecastSummary(ctx)
-		done <- struct{}{}
-	}()
+	done := make(chan struct{}, 2)
 
 	go func() {
 		w.generateForecastPeriodsInformation(ctx)
@@ -85,148 +80,16 @@ func (w *ForecastWorker) runGeneration(ctx context.Context) {
 	}()
 
 	go func() {
-		// RefreshAll regenerates the current conditions, smoke outlook, and
-		// fire weather summaries.
+		// RefreshAll regenerates the forecast summary, current conditions,
+		// smoke outlook, and fire weather summaries.
 		w.Generator.RefreshAll(ctx)
 		done <- struct{}{}
 	}()
 
-	// Wait for all to complete
-	<-done
 	<-done
 	<-done
 
 	slog.Info("forecast generation complete")
-}
-
-// ForecastSummaryResponse matches the handler response structure
-type ForecastSummaryResponse struct {
-	Summary     string    `json:"summary"`
-	Icon        string    `json:"icon"`
-	LastUpdated time.Time `json:"last_updated"`
-}
-
-func (w *ForecastWorker) generateForecastSummary(ctx context.Context) {
-	timeoutCtx, cancel := context.WithTimeout(ctx, w.Timeout)
-	defer cancel()
-
-	periods, err := w.NWSClient.GetSimplifiedForecastNPeriods(w.GridPoint, 3)
-	if err != nil {
-		slog.Error("worker: failed to get simplified forecast periods", slog.String("error", err.Error()))
-		return
-	}
-
-	periodsJSON, err := json.Marshal(periods)
-	if err != nil {
-		slog.Error("worker: failed to marshal simplified forecast periods", slog.String("error", err.Error()))
-		return
-	}
-
-	systemPrompt := `You are a tool that can provide concise summaries of weather forecasts.
-	You have access to the following list of icons:
-	"""
-	cloud
-	cloud-drizzle
-	cloud-fog
-	cloud-hail
-	cloud-lightning
-	cloud-moon
-	cloud-moon-rain
-	cloud-rain
-	cloud-rain-wind
-	cloud-snow
-	cloud-sun
-	cloud-sun-rain
-	cloudy
-	snowflake
-	sun
-	sun-snow
-	thermometer-snowflake
-	thermometer-sun
-	wind
-	"""
-	`
-
-	prompt := `
-		Input is a JSON array with one entry per forecast period.
-		Output is a JSON object with the key "summary" containing the overall forecast in at most four sentences and "icon" containing the icon that best fits the soonest weather for this summary.
-		Each entry contains relavant weather information including a detailed text forecast.
-		Do not include any information that is not present in the input.
-		Do not comment twice on the same weather condition.
-		Focus mainly on the daytime periods.
-		Avoid editorializing or making assumptions.
-		Avoid referring to "periods" in the output.
-		Make the output sound like a human wrote it, with concise but friendly language and complete sentences.`
-
-	fewShotTraining := []multiShot{
-		{
-			Input: `[
-					{
-						"name": "Tonight",
-						"start_time": "2024-06-08T20:00:00-07:00",
-						"end_time": "2024-06-09T06:00:00-07:00",
-						"temperature": "54F",
-						"detailed_forecast": "Mostly cloudy, with a low around 54. East wind around 2 mph.",
-						"relative_humidity": "80%",
-						"wind_speed": "2 mph E"
-						},
-					}
-					{
-						"name": "Sunday",
-						"start_time": "2024-06-09T06:00:00-07:00",
-						"end_time": "2024-06-09T18:00:00-07:00",
-						"temperature": "74F",
-						"detailed_forecast": "Mostly sunny. High near 74, with temperatures falling to around 72 in the afternoon. Southwest wind 1 to 6 mph.",
-						"relative_humidity": "79%",
-						"wind_speed": "1 to 6 mph SW"
-					},
-					{
-						"name": "Sunday Night",
-						"start_time": "2024-06-09T18:00:00-07:00",
-						"end_time": "2024-06-10T06:00:00-07:00",
-						"temperature": "51F",
-						"detailed_forecast": "Mostly cloudy, with a low around 51. West wind 2 to 6 mph.",
-						"relative_humidity": "85%",
-						"wind_speed": "2 to 6 mph W"
-					}
-				]`,
-			Output: `{"summary": "Tonight, mostly cloudy with a low around 54. Sunday, mostly sunny with a high near 74, temperatures falling to around 72 in the afternoon. Sunday night, mostly cloudy with a low around 51. Winds light and variable.", "icon": "cloud-moon"}`,
-		},
-	}
-
-	response, err := w.LLMProvider.Complete(timeoutCtx, llm.CompletionRequest{
-		SystemPrompt: systemPrompt,
-		UserPrompt:   buildFinalPrompt(prompt, fewShotTraining, string(periodsJSON)),
-		MaxTokens:    4096,
-	})
-	if err != nil {
-		slog.Error("worker: failed to get forecast summary", slog.String("error", err.Error()))
-		return
-	}
-
-	var fsr ForecastSummaryResponse
-	cleanedText := stripMarkdownCodeBlock(response.Content)
-	err = json.Unmarshal([]byte(cleanedText), &fsr)
-	if err != nil {
-		slog.Error("worker: failed to unmarshal forecast summary", slog.String("error", err.Error()), slog.String("response", cleanedText))
-		return
-	}
-
-	fsr.LastUpdated = time.Now()
-
-	fsrJson, err := json.Marshal(fsr)
-	if err != nil {
-		slog.Error("worker: failed to marshal forecast summary", slog.String("error", err.Error()))
-		return
-	}
-
-	err = w.DragonflyClient.Client.Set(timeoutCtx, fmt.Sprintf("%s-%s", w.DragonflyClient.KeyPrefix, "forecast-summary"), fsrJson, w.DragonflyClient.CacheResultsDuration).Err()
-	if err != nil {
-		slog.Error("worker: could not set forecast summary in cache", slog.String("error", err.Error()))
-		return
-	}
-
-	slog.Info("worker: forecast summary generated and cached")
 }
 
 // GetForecastPeriodsInformation matches the handler structure
